@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, CheckCircle2, Circle } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { getBabyAgeWeeks, uid, formatDate } from '../lib/utils'
+import { getBabyAgeWeeks, uid, formatDate, normaliseQuotes } from '../lib/utils'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -120,7 +120,7 @@ export function DoctorPrep() {
             <div className="flex gap-2 mb-4">
               <input
                 value={customQ}
-                onChange={(e) => setCustomQ(e.target.value)}
+                onChange={(e) => setCustomQ(normaliseQuotes(e.target.value))}
                 onKeyDown={(e) => e.key === 'Enter' && addCustomQuestion(activeVisit.id)}
                 placeholder="Add your own question…"
                 className="flex-1 rounded-xl border border-stone-200 bg-cream-50 px-4 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-300"

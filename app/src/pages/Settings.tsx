@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
-import { getBabyAgeLabel } from '../lib/utils'
+import { getBabyAgeLabel, normaliseQuotes } from '../lib/utils'
 
 export function Settings() {
   const { baby, setBaby } = useAppStore()
@@ -16,7 +16,7 @@ export function Settings() {
   useEffect(() => { setForm({ ...baby }) }, [baby])
 
   function set(key: string, value: string | boolean | number | null) {
-    setForm((prev) => ({ ...prev, [key]: value }))
+    setForm((prev) => ({ ...prev, [key]: typeof value === 'string' ? normaliseQuotes(value) : value }))
   }
 
   function save() {

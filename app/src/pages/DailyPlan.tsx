@@ -4,7 +4,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities'
 import { RefreshCw, CheckCircle2, GripVertical, Trash2, PlusCircle, Check } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { getBabyAgeWeeks, today } from '../lib/utils'
+import { getBabyAgeWeeks, today, normaliseQuotes } from '../lib/utils'
 import { generateDailyPlan, getCategoryIcon, getCategoryStyle } from '../lib/activities'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -226,9 +226,9 @@ export function DailyPlan() {
       {/* Add custom modal */}
       <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add your own activity">
         <div className="space-y-4">
-          <Input label="Activity name" value={customTitle} onChange={(e) => setCustomTitle(e.target.value)} placeholder="e.g. Park visit with grandma" />
-          <Input label="Description (optional)" value={customDesc} onChange={(e) => setCustomDesc(e.target.value)} placeholder="Any details..." />
-          <Input label="Duration (optional)" value={customDuration} onChange={(e) => setCustomDuration(e.target.value)} placeholder="e.g. 20 min" />
+          <Input label="Activity name" value={customTitle} onChange={(e) => setCustomTitle(normaliseQuotes(e.target.value))} placeholder="e.g. Park visit with grandma" />
+          <Input label="Description (optional)" value={customDesc} onChange={(e) => setCustomDesc(normaliseQuotes(e.target.value))} placeholder="Any details..." />
+          <Input label="Duration (optional)" value={customDuration} onChange={(e) => setCustomDuration(normaliseQuotes(e.target.value))} placeholder="e.g. 20 min" />
           <Button fullWidth onClick={handleAddCustom}>Add activity</Button>
         </div>
       </Modal>

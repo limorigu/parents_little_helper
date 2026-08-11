@@ -4,7 +4,7 @@ export const ALL_MILESTONES: Milestone[] = [
   // Week 1–2
   { id: 'm1', week: 1, title: 'Focuses on your face', description: 'Can fix gaze on a face held 20–30 cm away.', category: 'social', isOverachiever: false, supportingActivities: ['Hold baby at feeding distance and make eye contact', 'Talk softly while looking at baby'] },
   { id: 'm2', week: 1, title: 'Responds to sound', description: 'Startles or stills in response to a loud noise.', category: 'sensory', isOverachiever: false, supportingActivities: ['Play soft music', 'Narrate your day in a calm voice'] },
-  { id: 'm3', week: 2, title: 'Lifts head briefly during tummy time', description: 'Raises chin off surface for a moment.', category: 'motor', isOverachiever: false, supportingActivities: ['2–3 min tummy time after nappy change', 'Place a mirror at baby's eye level'] },
+  { id: 'm3', week: 2, title: 'Lifts head briefly during tummy time', description: 'Raises chin off surface for a moment.', category: 'motor', isOverachiever: false, supportingActivities: ['2–3 min tummy time after nappy change', 'Place a mirror at baby\'s eye level'] },
   { id: 'm4', week: 2, title: 'Tracks a moving object briefly', description: 'Eyes follow a slow-moving toy or face.', category: 'sensory', isOverachiever: true, supportingActivities: ['Slowly move a high-contrast rattle side to side', 'Use black-and-white picture cards'] },
 
   // Week 3–4
@@ -13,7 +13,7 @@ export const ALL_MILESTONES: Milestone[] = [
   { id: 'm7', week: 4, title: 'Holds head steady briefly upright', description: 'Supports own head for a few seconds when held upright.', category: 'motor', isOverachiever: false, supportingActivities: ['Supported sitting on your lap', 'Gentle upright carrying'] },
 
   // Week 6–8
-  { id: 'm8', week: 6, title: 'Recognises your voice', description: 'Turns toward the sound of a familiar voice.', category: 'language', isOverachiever: false, supportingActivities: ['Call baby's name from different directions', 'Sing the same lullaby each bedtime'] },
+  { id: 'm8', week: 6, title: 'Recognises your voice', description: 'Turns toward the sound of a familiar voice.', category: 'language', isOverachiever: false, supportingActivities: ['Call baby\'s name from different directions', 'Sing the same lullaby each bedtime'] },
   { id: 'm9', week: 6, title: 'Extended tummy time (30+ seconds)', description: 'Keeps head raised for half a minute during tummy time.', category: 'motor', isOverachiever: true, supportingActivities: ['Use a rolled towel under chest for support', 'Tummy time on your chest'] },
   { id: 'm10', week: 8, title: 'Coos and gurgles conversationally', description: 'Takes turns vocalising in a back-and-forth exchange.', category: 'language', isOverachiever: false, supportingActivities: ['Pause after speaking to give baby a turn', 'Mirror their sounds back to them'] },
   { id: 'm11', week: 8, title: 'Follows an arc with eyes', description: 'Tracks an object moved in a 180° arc.', category: 'sensory', isOverachiever: false, supportingActivities: ['Slowly swing a colourful toy in a wide arc', 'Use a mobile above the nappy-change mat'] },

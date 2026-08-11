@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Camera, Upload, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { ALL_MILESTONES, getCategoryLabel } from '../lib/milestones'
-import { getBabyAgeWeeks, uid, today } from '../lib/utils'
+import { getBabyAgeWeeks, uid, today, normaliseQuotes } from '../lib/utils'
 import { MILESTONE_FOLLOW_UP_QUESTIONS } from '../lib/activities'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -119,7 +119,7 @@ export function MilestoneRecord() {
               <p className="text-xs text-stone-400 mb-2">Or describe your own moment:</p>
               <Input
                 value={customTitle}
-                onChange={(e) => { setCustomTitle(e.target.value); if (e.target.value) setMilestoneId(null) }}
+                onChange={(e) => { setCustomTitle(normaliseQuotes(e.target.value)); if (e.target.value) setMilestoneId(null) }}
                 placeholder="e.g. First time reaching for my finger"
               />
             </div>
@@ -129,7 +129,7 @@ export function MilestoneRecord() {
             <Textarea
               label="Your notes (optional)"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => setNotes(normaliseQuotes(e.target.value))}
               placeholder="What happened? Any funny or sweet details?"
               rows={3}
             />
@@ -205,7 +205,7 @@ export function MilestoneRecord() {
                 key={i}
                 label={q}
                 value={followUpAnswers[i] ?? ''}
-                onChange={(e) => setFollowUpAnswers((prev) => ({ ...prev, [i]: e.target.value }))}
+                onChange={(e) => setFollowUpAnswers((prev) => ({ ...prev, [i]: normaliseQuotes(e.target.value) }))}
                 rows={2}
                 placeholder="Take your time…"
               />

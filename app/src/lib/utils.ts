@@ -57,6 +57,15 @@ export function today(): string {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
+// Normalise curly/smart quotes to straight ASCII equivalents.
+// Applies to any string coming from user input, clipboard paste, or static data,
+// so apostrophes never cause downstream parse or display issues.
+export function normaliseQuotes(s: string): string {
+  return s
+    .replace(/[‘’ʼʹ]/g, "'") // curly single quotes → '
+    .replace(/[“”]/g, '"')              // curly double quotes → "
+}
+
 // Growth chart WHO percentile approximations (female/male merged for simplicity)
 // weight-for-age median in grams by week
 export const WHO_WEIGHT_MEDIAN: Record<number, number> = {
