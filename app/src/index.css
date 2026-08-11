@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
+
+@theme {
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+
+  /* Warm neutral palette */
+  --color-cream-50: #fefcf8;
+  --color-cream-100: #fdf8f0;
+  --color-cream-200: #f9f0e1;
+  --color-cream-300: #f2e4cc;
+
+  --color-stone-50: #faf9f7;
+  --color-stone-100: #f5f3ef;
+  --color-stone-200: #e8e4dc;
+  --color-stone-300: #d4cec3;
+  --color-stone-400: #b5ada0;
+  --color-stone-500: #8c8277;
+  --color-stone-600: #6b6259;
+  --color-stone-700: #4a4540;
+  --color-stone-800: #2e2b27;
+  --color-stone-900: #1a1815;
+
+  /* Blush accent */
+  --color-blush-50: #fef6f4;
+  --color-blush-100: #fde9e4;
+  --color-blush-200: #f9cdc5;
+  --color-blush-300: #f3a89a;
+  --color-blush-400: #ea7e6c;
+  --color-blush-500: #de5a46;
+  --color-blush-600: #c9422e;
+
+  /* Sage accent */
+  --color-sage-50: #f4f7f4;
+  --color-sage-100: #e5ede5;
+  --color-sage-200: #c8d9c8;
+  --color-sage-300: #9dbb9d;
+  --color-sage-400: #6e976e;
+  --color-sage-500: #4d774d;
+  --color-sage-600: #3a5c3a;
+
+  /* Periwinkle accent */
+  --color-periwinkle-50: #f3f4fb;
+  --color-periwinkle-100: #e4e7f5;
+  --color-periwinkle-200: #c7cee9;
+  --color-periwinkle-300: #9faad8;
+  --color-periwinkle-400: #7482c3;
+  --color-periwinkle-500: #5461ae;
+  --color-periwinkle-600: #3f4c97;
+
+  /* Marigold accent */
+  --color-marigold-50: #fef9ec;
+  --color-marigold-100: #fef0cc;
+  --color-marigold-200: #fde08a;
+  --color-marigold-300: #fbc84a;
+  --color-marigold-400: #f9b020;
+  --color-marigold-500: #e8940a;
+
+  --radius-card: 1.25rem;
+  --radius-pill: 9999px;
+  --shadow-card: 0 2px 12px 0 rgba(44,38,30,0.07), 0 1px 3px 0 rgba(44,38,30,0.05);
+  --shadow-card-hover: 0 8px 28px 0 rgba(44,38,30,0.11), 0 2px 6px 0 rgba(44,38,30,0.07);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--color-cream-100);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-stone-800);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
