@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, CheckCircle2, Circle } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { getBabyAgeWeeks, uid, formatDate, normaliseQuotes } from '../lib/utils'
 import { Card } from '../components/ui/Card'
@@ -12,7 +12,7 @@ import { PageShell } from '../components/layout/PageShell'
 
 function getAutoQuestions(weeks: number): string[] {
   const base = [
-    'Is baby's weight gain on track?',
+    "Is baby's weight gain on track?",
     'Any concerns about feeding — latching, duration, frequency?',
     'Are the current vaccines up to date?',
   ]
@@ -85,7 +85,7 @@ export function DoctorPrep() {
           <p className="text-sm text-periwinkle-700">
             <span className="font-medium">At week {weeks}:</span>{' '}
             {weeks < 6
-              ? 'Your first postnatal check is key — don't hesitate to ask about your own recovery too.'
+              ? "Your first postnatal check is key — don't hesitate to ask about your own recovery too."
               : weeks < 16
               ? 'This is a great time to discuss feeding patterns, sleep, and the upcoming vaccinations.'
               : 'Starting solid foods is coming up — prepare your questions now so you feel confident.'}

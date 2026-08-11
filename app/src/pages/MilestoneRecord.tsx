@@ -1,11 +1,10 @@
 import { useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Camera, Upload, X } from 'lucide-react'
+import { Camera, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { ALL_MILESTONES, getCategoryLabel } from '../lib/milestones'
 import { getBabyAgeWeeks, uid, today, normaliseQuotes } from '../lib/utils'
 import { MILESTONE_FOLLOW_UP_QUESTIONS } from '../lib/activities'
-import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
@@ -93,7 +92,7 @@ export function MilestoneRecord() {
         {/* Step indicator */}
         <div className="flex gap-2">
           {(['what', 'media', 'followup'] as Step[]).map((s, i) => (
-            <div key={s} className={`h-1 flex-1 rounded-full transition-all ${step === s || (step === 'followup' && i <= 2) || (step === 'media' && i <= 1) || (step === 'done') ? 'bg-stone-700' : 'bg-stone-200'}`} />
+            <div key={s} className={`h-1 flex-1 rounded-full transition-all ${step === s || (step === 'followup' && i <= 2) || (step === 'media' && i <= 1) ? 'bg-stone-700' : 'bg-stone-200'}`} />
           ))}
         </div>
 

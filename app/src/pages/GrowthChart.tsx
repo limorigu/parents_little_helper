@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { uid, today, WHO_WEIGHT_MEDIAN } from '../lib/utils'
+import { uid, today } from '../lib/utils'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
@@ -12,7 +12,7 @@ import { PageShell } from '../components/layout/PageShell'
 
 type Metric = 'weight' | 'height' | 'head'
 
-const METRIC_LABELS: Record<Metric, { label: string; unit: string; key: keyof typeof WHO_WEIGHT_MEDIAN extends string ? any : any }> = {
+const METRIC_LABELS: Record<Metric, { label: string; unit: string }> = {
   weight: { label: 'Weight', unit: 'g' },
   height: { label: 'Height', unit: 'cm' },
   head: { label: 'Head circumference', unit: 'cm' },
@@ -145,7 +145,7 @@ export function GrowthChart() {
                 <YAxis tick={{ fontSize: 10, fill: '#8c8277' }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 12, border: '1px solid #e8e4dc', fontSize: 12 }}
-                  formatter={(v: number) => [`${v} ${METRIC_LABELS[metric].unit}`, METRIC_LABELS[metric].label]}
+                  formatter={(v) => `${v} ${METRIC_LABELS[metric].unit}`}
                 />
                 <Line
                   type="monotone"

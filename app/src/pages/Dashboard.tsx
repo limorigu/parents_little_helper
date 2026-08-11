@@ -14,11 +14,11 @@ function greet(name: string) {
 }
 
 function getTip(weeks: number): string {
-  if (weeks < 2) return 'You're doing an incredible job. Rest as much as you can — healing takes time.'
-  if (weeks < 6) return 'Skin-to-skin time with your baby has measurable benefits for both of you. Even 10 minutes counts.'
-  if (weeks < 12) return 'Narrating your day — "now we're folding laundry!" — is one of the best things you can do for language development.'
-  if (weeks < 20) return 'Floor time and tummy time every day help build the core strength that leads to sitting and crawling.'
-  return 'Your baby is developing so fast right now. Taking even short videos captures things photos can't.'
+  if (weeks < 2) return "You're doing an incredible job. Rest as much as you can — healing takes time."
+  if (weeks < 6) return "Skin-to-skin time with your baby has measurable benefits for both of you. Even 10 minutes counts."
+  if (weeks < 12) return "Narrating your day out loud is one of the best things you can do for language development."
+  if (weeks < 20) return "Floor time and tummy time every day help build the core strength that leads to sitting and crawling."
+  return "Your baby is developing so fast right now. Taking even short videos captures things photos can't."
 }
 
 export function Dashboard() {

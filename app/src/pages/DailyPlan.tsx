@@ -6,7 +6,6 @@ import { RefreshCw, CheckCircle2, GripVertical, Trash2, PlusCircle, Check } from
 import { useAppStore } from '../store/useAppStore'
 import { getBabyAgeWeeks, today, normaliseQuotes } from '../lib/utils'
 import { generateDailyPlan, getCategoryIcon, getCategoryStyle } from '../lib/activities'
-import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageShell } from '../components/layout/PageShell'
 import { Modal } from '../components/ui/Modal'
