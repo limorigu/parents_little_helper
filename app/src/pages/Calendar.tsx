@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { format, parseISO, addDays, addMonths, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns'
-import { ChevronLeft, ChevronRight, Plus, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Star, Camera, X, Trash2 } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { getBabyAgeWeeks, uid, formatDate } from '../lib/utils'
+import { getBabyAgeWeeks, uid, formatDate, normaliseQuotes } from '../lib/utils'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, Textarea } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
+import type { CelebrationPhoto } from '../store/useAppStore'
 
 interface CalendarEvent {
   id: string
@@ -19,14 +20,12 @@ interface CalendarEvent {
   isSpecial: boolean
 }
 
-// Generate automatic key dates from birth date
 function getAutoEvents(birthDate: string): CalendarEvent[] {
   if (!birthDate) return []
   const birth = parseISO(birthDate)
   const events: CalendarEvent[] = [
     { id: 'birth', date: birthDate, title: 'Birth day', description: 'The most important day.', type: 'birthday', isSpecial: true },
   ]
-  // Monthly anniversaries for first year
   for (let month = 1; month <= 12; month++) {
     const d = addMonths(birth, month)
     events.push({
@@ -38,7 +37,6 @@ function getAutoEvents(birthDate: string): CalendarEvent[] {
       isSpecial: month % 3 === 0,
     })
   }
-  // 100 days
   events.push({
     id: 'day100',
     date: format(addDays(birth, 100), 'yyyy-MM-dd'),
@@ -58,7 +56,7 @@ function useCalendarEvents() {
     date: r.date,
     title: r.title,
     description: r.notes,
-    type: 'milestone',
+    type: 'milestone' as const,
     isSpecial: false,
   }))
   const doctorEvents: CalendarEvent[] = doctorVisits.map((v) => ({
@@ -66,16 +64,134 @@ function useCalendarEvents() {
     date: v.date,
     title: v.type,
     description: v.notes,
-    type: 'appointment',
+    type: 'appointment' as const,
     isSpecial: false,
   }))
   return [...auto, ...milestoneEvents, ...doctorEvents]
 }
 
+// ─── Celebrate modal ─────────────────────────────────────────────────────────
+
+function CelebrateModal({
+  open,
+  onClose,
+  event,
+  existing,
+}: {
+  open: boolean
+  onClose: () => void
+  event: CalendarEvent | null
+  existing: CelebrationPhoto | undefined
+}) {
+  const { addCelebration, deleteCelebration } = useAppStore()
+  const [mediaUrl, setMediaUrl] = useState<string | null>(existing?.mediaUrl ?? null)
+  const [mediaType, setMediaType] = useState<'photo' | 'video'>(existing?.mediaType ?? 'photo')
+  const [note, setNote] = useState(existing?.note ?? '')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  if (!event) return null
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setMediaUrl(ev.target?.result as string)
+      setMediaType(file.type.startsWith('video') ? 'video' : 'photo')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function save() {
+    if (!mediaUrl) return
+    if (existing) deleteCelebration(existing.id)
+    addCelebration({
+      id: uid(),
+      eventId: event!.id,
+      mediaUrl,
+      mediaType,
+      note: normaliseQuotes(note),
+      capturedAt: new Date().toISOString(),
+    })
+    onClose()
+  }
+
+  function handleDelete() {
+    if (existing) deleteCelebration(existing.id)
+    setMediaUrl(null)
+    setNote('')
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Celebrate: ${event.title}`}>
+      <div className="space-y-4">
+        <p className="text-sm text-stone-500">
+          Capture this special moment with a photo or video — you'll treasure it forever.
+        </p>
+
+        {/* Media preview / upload zone */}
+        {mediaUrl ? (
+          <div className="relative rounded-2xl overflow-hidden">
+            {mediaType === 'video' ? (
+              <video src={mediaUrl} controls className="w-full rounded-2xl max-h-64 object-cover" />
+            ) : (
+              <img src={mediaUrl} alt="celebration" className="w-full rounded-2xl max-h-64 object-cover" />
+            )}
+            <button
+              onClick={() => setMediaUrl(null)}
+              className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1.5 hover:bg-black/70 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="w-full h-40 rounded-2xl border-2 border-dashed border-blush-200 bg-blush-50 flex flex-col items-center justify-center gap-2 text-blush-400 hover:border-blush-300 hover:text-blush-500 transition-all"
+          >
+            <Camera size={28} strokeWidth={1.5} />
+            <p className="text-sm font-medium">Add a photo or video</p>
+            <p className="text-xs">tap to choose from your library</p>
+          </button>
+        )}
+
+        <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+
+        <Textarea
+          label="Caption (optional)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          placeholder="A note to remember this moment…"
+        />
+
+        <div className="flex gap-3">
+          {existing && (
+            <button
+              onClick={handleDelete}
+              className="text-stone-400 hover:text-blush-500 transition-colors p-2"
+              title="Remove photo"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+          <Button fullWidth onClick={save} disabled={!mediaUrl}>
+            {existing ? 'Update photo' : 'Save celebration photo'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function Calendar() {
-  const { baby } = useAppStore()
+  const { baby, celebrations } = useAppStore()
   const [viewDate, setViewDate] = useState(new Date())
   const [addModal, setAddModal] = useState(false)
+  const [celebrateEvent, setCelebrateEvent] = useState<CalendarEvent | null>(null)
   const [customEvents, setCustomEvents] = useState<CalendarEvent[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
@@ -102,7 +218,7 @@ export function Calendar() {
     if (!newTitle.trim()) return
     setCustomEvents((prev) => [
       ...prev,
-      { id: uid(), date: newDate, title: newTitle.trim(), description: newDesc.trim(), type: 'custom', isSpecial: false },
+      { id: uid(), date: newDate, title: normaliseQuotes(newTitle.trim()), description: normaliseQuotes(newDesc.trim()), type: 'custom', isSpecial: false },
     ])
     setNewTitle(''); setNewDesc('')
     setAddModal(false)
@@ -114,6 +230,13 @@ export function Calendar() {
       return d >= new Date() && d <= addDays(new Date(), 30)
     })
     .sort((a, b) => a.date.localeCompare(b.date))
+
+  function celebrationFor(eventId: string) {
+    return celebrations.find((c) => c.eventId === eventId)
+  }
+
+  const eventTypeIcon = (type: CalendarEvent['type']) =>
+    type === 'birthday' ? '🎂' : type === 'milestone' ? '⭐' : type === 'appointment' ? '🩺' : '📌'
 
   return (
     <PageShell
@@ -141,7 +264,6 @@ export function Calendar() {
           </div>
 
           <div className="grid grid-cols-7">
-            {/* Empty leading cells */}
             {Array.from({ length: monthStart.getDay() }).map((_, i) => (
               <div key={`empty-${i}`} className="h-10" />
             ))}
@@ -151,6 +273,7 @@ export function Calendar() {
               const isToday = isSameDay(day, new Date())
               const isSelected = selectedDate === key
               const hasSpecial = events.some((e) => e.isSpecial)
+              const hasCelebration = events.some((e) => celebrationFor(e.id))
               return (
                 <button
                   key={key}
@@ -159,13 +282,20 @@ export function Calendar() {
                 >
                   <span className={`text-sm leading-none ${isToday ? 'font-bold text-stone-800' : 'text-stone-600'}`}>{day.getDate()}</span>
                   {events.length > 0 && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${hasSpecial ? 'bg-blush-400' : 'bg-periwinkle-300'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${hasCelebration ? 'bg-blush-500' : hasSpecial ? 'bg-blush-300' : 'bg-periwinkle-300'}`} />
                   )}
                 </button>
               )
             })}
           </div>
         </Card>
+
+        {/* Dot legend */}
+        <div className="flex items-center gap-4 px-1">
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blush-500" /><span className="text-xs text-stone-400">photo saved</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blush-300" /><span className="text-xs text-stone-400">special day</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-periwinkle-300" /><span className="text-xs text-stone-400">event</span></div>
+        </div>
 
         {/* Selected date events */}
         {selectedDate && (
@@ -174,19 +304,48 @@ export function Calendar() {
             {selectedEvents.length === 0 ? (
               <p className="text-sm text-stone-400">No events on this day.</p>
             ) : (
-              <div className="space-y-2">
-                {selectedEvents.map((e) => (
-                  <Card key={e.id} padding="sm" className="flex items-start gap-3">
-                    <span className="text-base mt-0.5">
-                      {e.type === 'birthday' ? '🎂' : e.type === 'milestone' ? '⭐' : e.type === 'appointment' ? '🩺' : '📌'}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-stone-700">{e.title}</p>
-                      {e.description && <p className="text-xs text-stone-400">{e.description}</p>}
-                    </div>
-                    {e.isSpecial && <Badge className="bg-blush-100 text-blush-600 ml-auto shrink-0">special</Badge>}
-                  </Card>
-                ))}
+              <div className="space-y-3">
+                {selectedEvents.map((e) => {
+                  const photo = celebrationFor(e.id)
+                  return (
+                    <Card key={e.id} padding="sm" className={e.isSpecial ? 'border-blush-100' : ''}>
+                      {/* Photo if saved */}
+                      {photo && (
+                        <div className="relative rounded-xl overflow-hidden mb-3 -mt-1">
+                          {photo.mediaType === 'video' ? (
+                            <video src={photo.mediaUrl} controls className="w-full max-h-48 object-cover rounded-xl" />
+                          ) : (
+                            <img src={photo.mediaUrl} alt="celebration" className="w-full max-h-48 object-cover rounded-xl" />
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-3">
+                        <span className="text-base mt-0.5">{eventTypeIcon(e.type)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-stone-700">{e.title}</p>
+                          {photo?.note
+                            ? <p className="text-xs text-stone-500 mt-0.5 italic">"{photo.note}"</p>
+                            : e.description
+                            ? <p className="text-xs text-stone-400 mt-0.5">{e.description}</p>
+                            : null}
+                        </div>
+                        {e.isSpecial && <Badge className="bg-blush-100 text-blush-600 shrink-0">special</Badge>}
+                      </div>
+
+                      {/* Celebrate CTA for special events */}
+                      {e.isSpecial && (
+                        <button
+                          onClick={() => setCelebrateEvent(e)}
+                          className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-blush-50 border border-blush-100 text-blush-600 text-xs font-medium hover:bg-blush-100 transition-all"
+                        >
+                          <Camera size={13} />
+                          {photo ? 'Update celebration photo' : 'Add a celebration photo'}
+                        </button>
+                      )}
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -199,6 +358,7 @@ export function Calendar() {
             <div className="space-y-2">
               {upcomingEvents.slice(0, 6).map((e) => {
                 const daysUntil = differenceInDays(parseISO(e.date), new Date())
+                const photo = celebrationFor(e.id)
                 return (
                   <Card key={e.id} padding="sm" className="flex items-center gap-3">
                     <div className="w-10 text-center shrink-0">
@@ -210,7 +370,19 @@ export function Calendar() {
                       <p className="text-sm font-medium text-stone-700">{e.title}</p>
                       <p className="text-xs text-stone-400">{format(parseISO(e.date), 'd MMM yyyy')}</p>
                     </div>
-                    {e.isSpecial && <Star size={14} className="text-blush-400 shrink-0" />}
+                    {photo && (
+                      <img src={photo.mediaUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                    )}
+                    {e.isSpecial && !photo && (
+                      <button
+                        onClick={() => { setSelectedDate(e.date.slice(0, 10)); setCelebrateEvent(e) }}
+                        className="shrink-0 text-blush-400 hover:text-blush-600 transition-colors"
+                        title="Add celebration photo"
+                      >
+                        <Camera size={16} />
+                      </button>
+                    )}
+                    {e.isSpecial && <Star size={14} className="text-blush-300 shrink-0" />}
                   </Card>
                 )
               })}
@@ -219,6 +391,7 @@ export function Calendar() {
         )}
       </div>
 
+      {/* Add event modal */}
       <Modal open={addModal} onClose={() => setAddModal(false)} title="Add an event">
         <div className="space-y-4">
           <Input label="Event name" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. First swimming class" />
@@ -227,6 +400,14 @@ export function Calendar() {
           <Button fullWidth onClick={addCustomEvent}>Add to calendar</Button>
         </div>
       </Modal>
+
+      {/* Celebrate modal */}
+      <CelebrateModal
+        open={!!celebrateEvent}
+        onClose={() => setCelebrateEvent(null)}
+        event={celebrateEvent}
+        existing={celebrateEvent ? celebrationFor(celebrateEvent.id) : undefined}
+      />
     </PageShell>
   )
 }

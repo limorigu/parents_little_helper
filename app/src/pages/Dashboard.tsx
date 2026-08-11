@@ -1,11 +1,25 @@
 import { Link } from 'react-router-dom'
 import { Star, Heart, TrendingUp, ListChecks, ChevronRight, Camera } from 'lucide-react'
+import { format, parseISO, addDays, addMonths } from 'date-fns'
 import { useAppStore } from '../store/useAppStore'
 import { getBabyAgeLabel, getBabyAgeWeeks, today, formatDate } from '../lib/utils'
 import { getMilestonesForWeek } from '../lib/milestones'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { PageShell } from '../components/layout/PageShell'
+
+function getTodaySpecialEvent(birthDate: string): { title: string } | null {
+  if (!birthDate) return null
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const birth = parseISO(birthDate)
+  if (todayStr === birthDate) return { title: 'Birth day' }
+  if (format(addDays(birth, 100), 'yyyy-MM-dd') === todayStr) return { title: '100 days old! 🎉' }
+  for (let m = 1; m <= 12; m++) {
+    if (format(addMonths(birth, m), 'yyyy-MM-dd') === todayStr)
+      return { title: `${m} month${m > 1 ? 's' : ''} old!` }
+  }
+  return null
+}
 
 function greet(name: string) {
   const hour = new Date().getHours()
@@ -31,6 +45,7 @@ export function Dashboard() {
 
   const todayFeeds = feeds.filter((f) => f.date.startsWith(todayDate))
   const lastSleep = sleep.find((s) => s.endTime)
+  const specialToday = getTodaySpecialEvent(baby.birthDate)
 
   return (
     <PageShell
@@ -38,6 +53,23 @@ export function Dashboard() {
       subtitle={baby.name ? `${baby.name} is ${getBabyAgeLabel(baby.birthDate)}` : undefined}
     >
       <div className="space-y-5">
+        {/* Special day banner */}
+        {specialToday && (
+          <Link to="/calendar">
+            <Card className="bg-gradient-to-br from-blush-50 to-cream-100 border-blush-200 flex items-center gap-4 hover:shadow-md transition-shadow">
+              <span className="text-3xl">🎂</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-display text-base text-stone-800">
+                  {baby.name ? `${baby.name} is ` : ''}{specialToday.title}
+                </p>
+                <p className="text-xs text-blush-500 mt-0.5 flex items-center gap-1">
+                  <Camera size={11} /> Tap to add a celebration photo
+                </p>
+              </div>
+            </Card>
+          </Link>
+        )}
+
         {/* Tip of the day */}
         <Card className="bg-gradient-to-br from-cream-200 to-cream-100 border-cream-300">
           <p className="text-sm text-stone-600 leading-relaxed">

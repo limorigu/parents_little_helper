@@ -92,6 +92,15 @@ export interface DoctorVisit {
   completed: boolean
 }
 
+export interface CelebrationPhoto {
+  id: string
+  eventId: string // matches CalendarEvent id (e.g. 'month-3', 'day100', 'birth')
+  mediaUrl: string
+  mediaType: 'photo' | 'video'
+  note: string
+  capturedAt: string // ISO
+}
+
 export interface LocalActivity {
   id: string
   name: string
@@ -112,6 +121,7 @@ interface AppState {
   doctorVisits: DoctorVisit[]
   localActivities: LocalActivity[]
   lastActivityFetch: string | null
+  celebrations: CelebrationPhoto[]
 
   setBaby: (updates: Partial<BabyProfile>) => void
   addRecordedMilestone: (m: RecordedMilestone) => void
@@ -137,6 +147,8 @@ interface AppState {
   updateDoctorVisit: (id: string, updates: Partial<DoctorVisit>) => void
 
   setLocalActivities: (activities: LocalActivity[], fetchedAt: string) => void
+  addCelebration: (c: CelebrationPhoto) => void
+  deleteCelebration: (id: string) => void
 }
 
 const defaultBaby: BabyProfile = {
@@ -164,6 +176,7 @@ export const useAppStore = create<AppState>()(
       doctorVisits: [],
       localActivities: [],
       lastActivityFetch: null,
+      celebrations: [],
 
       setBaby: (updates) =>
         set((s) => ({ baby: { ...s.baby, ...updates } })),
@@ -238,6 +251,11 @@ export const useAppStore = create<AppState>()(
 
       setLocalActivities: (activities, fetchedAt) =>
         set({ localActivities: activities, lastActivityFetch: fetchedAt }),
+
+      addCelebration: (c) =>
+        set((s) => ({ celebrations: [c, ...s.celebrations] })),
+      deleteCelebration: (id) =>
+        set((s) => ({ celebrations: s.celebrations.filter((c) => c.id !== id) })),
     }),
     { name: 'parents-little-helper' }
   )
