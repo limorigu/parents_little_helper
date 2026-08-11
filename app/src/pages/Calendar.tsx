@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { format, parseISO, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns'
+import { format, parseISO, addDays, addMonths, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, Plus, Star } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { getBabyAgeWeeks, uid, formatDate } from '../lib/utils'
@@ -28,7 +28,7 @@ function getAutoEvents(birthDate: string): CalendarEvent[] {
   ]
   // Monthly anniversaries for first year
   for (let month = 1; month <= 12; month++) {
-    const d = addDays(birth, month * 30)
+    const d = addMonths(birth, month)
     events.push({
       id: `month-${month}`,
       date: format(d, 'yyyy-MM-dd'),
