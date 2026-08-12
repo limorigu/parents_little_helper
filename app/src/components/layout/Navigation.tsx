@@ -19,14 +19,8 @@ export function Navigation() {
     <>
       {/* Sidebar – desktop */}
       <nav className="hidden md:flex flex-col w-60 shrink-0 bg-cream-50 border-r-4 border-stone-800 min-h-screen py-8 px-4 fixed left-0 top-0 bottom-0 z-40">
-        <div className="flex items-center gap-3 px-1 mb-8 group">
-          <div className="w-11 h-11 shrink-0 flex items-center justify-center text-xl bg-marigold-400 border-4 border-stone-800 rounded-2xl -rotate-6 shadow-brutal-sm group-hover:rotate-6 group-hover:shadow-brutal transition-all duration-200">
-            🧸
-          </div>
-          <div>
-            <span className="font-display font-black text-stone-800 text-lg leading-tight block">Parents'</span>
-            <span className="font-display font-black text-stone-800 text-lg leading-tight block">Little Helper</span>
-          </div>
+        <div className="px-1 mb-8">
+          <img src="/logo-horizontal.png" alt="Parents' Little Helper" className="h-10 w-auto" />
         </div>
         <div className="flex flex-col gap-1.5">
           {NAV.map(({ to, label, icon: Icon }) => {
