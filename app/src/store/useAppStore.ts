@@ -137,6 +137,7 @@ interface AppState {
   googleFolderId: string | null
   googleSheetId: string | null
   googleLastSync: string | null
+  googleWriteSheetName: string | null
 
   setBaby: (updates: Partial<BabyProfile>) => void
   addRecordedMilestone: (m: RecordedMilestone) => void
@@ -174,6 +175,7 @@ interface AppState {
     folderId?: string | null
     sheetId?: string | null
     lastSync?: string | null
+    writeSheetName?: string | null
   }) => void
 }
 
@@ -182,6 +184,7 @@ const defaultGoogleConfig = {
   googleFolderId: null as string | null,
   googleSheetId: null as string | null,
   googleLastSync: null as string | null,
+  googleWriteSheetName: null as string | null,
 }
 
 const defaultBaby: BabyProfile = {
@@ -307,6 +310,7 @@ export const useAppStore = create<AppState>()(
           googleFolderId: cfg.folderId !== undefined ? cfg.folderId : s.googleFolderId,
           googleSheetId: cfg.sheetId !== undefined ? cfg.sheetId : s.googleSheetId,
           googleLastSync: cfg.lastSync !== undefined ? cfg.lastSync : s.googleLastSync,
+          googleWriteSheetName: cfg.writeSheetName !== undefined ? cfg.writeSheetName : s.googleWriteSheetName,
         })),
     }),
     { name: 'parents-little-helper' }

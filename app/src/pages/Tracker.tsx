@@ -1,16 +1,25 @@
 import { useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { uid, today, formatTime } from '../lib/utils'
-import { Card } from '../components/ui/Card'
+import { formatTime, today, uid } from '../lib/utils'
 import { Button } from '../components/ui/Button'
-import { Badge } from '../components/ui/Badge'
+import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
 import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
+import { SheetTable, SheetChip, type SheetColumn, type SheetRow } from '../components/ui/SheetTable'
 import { PageShell } from '../components/layout/PageShell'
 import type { FeedEntry, SleepEntry, DiaperEntry } from '../store/useAppStore'
+
+const SHEET_COLUMNS: SheetColumn[] = [
+  { key: 'date', label: 'Date' },
+  { key: 'activity', label: 'Activity' },
+  { key: 'start', label: 'Start Time' },
+  { key: 'end', label: 'End Time' },
+  { key: 'duration', label: 'Duration' },
+  { key: 'notes', label: 'Notes' },
+]
 
 type Tab = 'feed' | 'sleep' | 'diaper'
 
@@ -259,24 +268,21 @@ export function Tracker() {
             {recentFeeds.length === 0 ? (
               <EmptyState icon="🍼" title="No feeds logged yet" description="Tap 'Log a feed' to start tracking." />
             ) : (
-              <div className="space-y-2">
-                {recentFeeds.map((f) => (
-                  <Card key={f.id} padding="sm" className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-stone-700">{FEED_LABELS[f.type]}</p>
-                        {f.durationMinutes && <Badge className="bg-cream-200 text-stone-600">{f.durationMinutes} min</Badge>}
-                        {f.amountMl && <Badge className="bg-cream-200 text-stone-600">{f.amountMl}ml</Badge>}
-                      </div>
-                      <p className="text-xs text-stone-400">{formatTime(f.date)} · {format(parseISO(f.date), 'd MMM')}</p>
-                      {f.notes && <p className="text-xs text-stone-500 mt-0.5">{f.notes}</p>}
-                    </div>
-                    <button onClick={() => deleteFeed(f.id)} className="text-stone-300 hover:text-blush-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
-                  </Card>
-                ))}
-              </div>
+              <SheetTable
+                columns={SHEET_COLUMNS}
+                onDeleteRow={deleteFeed}
+                rows={recentFeeds.map<SheetRow>((f) => ({
+                  id: f.id,
+                  cells: {
+                    date: format(parseISO(f.date), 'd MMM'),
+                    activity: <SheetChip label={FEED_LABELS[f.type]} color="sage" />,
+                    start: formatTime(f.date),
+                    end: '—',
+                    duration: f.durationMinutes ? `${f.durationMinutes} min` : f.amountMl ? `${f.amountMl}ml` : '—',
+                    notes: f.notes || '—',
+                  },
+                }))}
+              />
             )}
           </div>
         )}
@@ -304,37 +310,26 @@ export function Tracker() {
             {recentSleep.length === 0 ? (
               <EmptyState icon="🌙" title="No sleep logged yet" description="Tap 'Log sleep' to start tracking." />
             ) : (
-              <div className="space-y-2">
-                {recentSleep.map((s) => {
+              <SheetTable
+                columns={SHEET_COLUMNS}
+                onDeleteRow={deleteSleep}
+                rows={recentSleep.map<SheetRow>((s) => {
                   const mins = s.endTime
                     ? Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60_000)
                     : null
-                  return (
-                    <Card key={s.id} padding="sm" className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-stone-700">
-                            {s.type === 'night' ? '🌙 Night' : '☀️ Nap'}
-                          </p>
-                          {mins !== null && (
-                            <Badge className="bg-cream-200 text-stone-600">
-                              {mins >= 60 ? `${(mins / 60).toFixed(1)}h` : `${mins}m`}
-                            </Badge>
-                          )}
-                          {!s.endTime && <Badge className="bg-periwinkle-100 text-periwinkle-600">in progress</Badge>}
-                        </div>
-                        <p className="text-xs text-stone-400">
-                          {formatTime(s.startTime)}{s.endTime ? ` → ${formatTime(s.endTime)}` : ''} · {format(parseISO(s.startTime), 'd MMM')}
-                        </p>
-                        {s.location && <p className="text-xs text-stone-400">{s.location}</p>}
-                      </div>
-                      <button onClick={() => deleteSleep(s.id)} className="text-stone-300 hover:text-blush-500 transition-colors">
-                        <Trash2 size={14} />
-                      </button>
-                    </Card>
-                  )
+                  return {
+                    id: s.id,
+                    cells: {
+                      date: format(parseISO(s.startTime), 'd MMM'),
+                      activity: <SheetChip label={s.type === 'night' ? '🌙 Night' : '☀️ Nap'} color="marigold" />,
+                      start: formatTime(s.startTime),
+                      end: s.endTime ? formatTime(s.endTime) : 'In progress',
+                      duration: mins !== null ? (mins >= 60 ? `${(mins / 60).toFixed(1)}h` : `${mins}m`) : '—',
+                      notes: s.location || '—',
+                    },
+                  }
                 })}
-              </div>
+              />
             )}
           </div>
         )}
@@ -348,22 +343,21 @@ export function Tracker() {
             {recentDiaper.length === 0 ? (
               <EmptyState icon="🧷" title="No nappy changes logged yet" description="Tap above to start tracking." />
             ) : (
-              <div className="space-y-2">
-                {recentDiaper.map((d) => (
-                  <Card key={d.id} padding="sm" className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-700">{DIAPER_LABELS[d.type]}</p>
-                      <p className="text-xs text-stone-400">
-                        {formatTime(d.startTime)} · {format(parseISO(d.startTime), 'd MMM')}
-                      </p>
-                      {d.notes && <p className="text-xs text-stone-500 mt-0.5">{d.notes}</p>}
-                    </div>
-                    <button onClick={() => deleteDiaper(d.id)} className="text-stone-300 hover:text-blush-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
-                  </Card>
-                ))}
-              </div>
+              <SheetTable
+                columns={SHEET_COLUMNS}
+                onDeleteRow={deleteDiaper}
+                rows={recentDiaper.map<SheetRow>((d) => ({
+                  id: d.id,
+                  cells: {
+                    date: format(parseISO(d.startTime), 'd MMM'),
+                    activity: <SheetChip label={DIAPER_LABELS[d.type]} color="blush" />,
+                    start: formatTime(d.startTime),
+                    end: '—',
+                    duration: '—',
+                    notes: d.notes || '—',
+                  },
+                }))}
+              />
             )}
           </div>
         )}

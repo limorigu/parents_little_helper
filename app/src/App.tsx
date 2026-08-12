@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from './store/useAppStore'
+import { useGoogleAutoSync } from './hooks/useGoogleAutoSync'
 import { Navigation } from './components/layout/Navigation'
 import { Dashboard } from './pages/Dashboard'
 import { Milestones } from './pages/Milestones'
@@ -13,6 +14,7 @@ import { Settings } from './pages/Settings'
 
 function AppShell() {
   const { baby } = useAppStore()
+  useGoogleAutoSync()
 
   if (!baby.onboardingComplete) {
     return <Settings />

@@ -2,12 +2,9 @@
 // Google Drive + Sheets sync
 //
 // All app data lives in localStorage (Zustand persist). This module is a
-// one-way mirror: on demand it writes every record into a Google Spreadsheet
-// and uploads any base64 media to a Google Drive folder.
-//
-// Import direction: fetch an existing sheet with the activity-log format
-// (Activity | Start Time | End Time | Duration | Notes) and translate rows
-// into FeedEntry / SleepEntry / DiaperEntry objects the store can absorb.
+// mirror on top of that: it can write every record into a Google Spreadsheet,
+// upload base64 media to a Google Drive folder, and read an existing
+// spreadsheet (any tab, any column order) back into the app's data shapes.
 // ---------------------------------------------------------------------------
 
 import { format, parseISO } from 'date-fns'
@@ -27,8 +24,20 @@ const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets'
 
 type Row = (string | number)[]
 
+const DEFAULT_HEADERS = ['Date', 'Activity', 'Start Time', 'End Time', 'Duration', 'Notes']
+
 function auth(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+}
+
+/** Escape single quotes for use inside a Drive API `q` query string literal. */
+function escapeQ(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+/** Quote + escape a sheet/tab name for use in an A1-notation range (e.g. 'My Tab'!A1). */
+function quoteSheetName(name: string): string {
+  return `'${name.replace(/'/g, "''")}'`
 }
 
 async function driveGet<T>(token: string, path: string): Promise<T> {
@@ -67,12 +76,13 @@ async function sheetsPost<T>(token: string, path: string, body: unknown): Promis
   return r.json()
 }
 
-// ── Drive folder helpers ────────────────────────────────────────────────────
-
-/** Escape single quotes for use inside a Drive API `q` query string literal. */
-function escapeQ(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+async function sheetsGet<T>(token: string, path: string): Promise<T> {
+  const r = await fetch(`${SHEETS}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!r.ok) throw new Error(`Sheets ${r.status}: ${await r.text()}`)
+  return r.json()
 }
+
+// ── Drive folder helpers ────────────────────────────────────────────────────
 
 /** Find or create a Drive folder, optionally inside a parent. */
 export async function findOrCreateFolder(
@@ -166,7 +176,35 @@ export async function findOrCreateSpreadsheet(
   return spreadsheetId
 }
 
-// ── Row formatters ──────────────────────────────────────────────────────────
+/** List every tab (sheet) in a spreadsheet, in left-to-right order. */
+export async function listSheetTabs(
+  token: string,
+  spreadsheetId: string,
+): Promise<{ sheetId: number; title: string }[]> {
+  const json = await sheetsGet<{ sheets?: { properties: { sheetId: number; title: string } }[] }>(
+    token,
+    `/${spreadsheetId}?fields=sheets.properties`,
+  )
+  return (json.sheets ?? []).map((s) => ({ sheetId: s.properties.sheetId, title: s.properties.title }))
+}
+
+/** Create a new tab in an existing spreadsheet, pre-filled with the standard header row. */
+export async function createSheetTab(
+  token: string,
+  spreadsheetId: string,
+  title: string,
+): Promise<number> {
+  const json = await sheetsPost<{ replies: { addSheet: { properties: { sheetId: number } } }[] }>(
+    token,
+    `/${spreadsheetId}:batchUpdate`,
+    { requests: [{ addSheet: { properties: { title } } }] },
+  )
+  const sheetId = json.replies[0].addSheet.properties.sheetId
+  await putSheet(token, spreadsheetId, title, [DEFAULT_HEADERS])
+  return sheetId
+}
+
+// ── Row / field formatters ──────────────────────────────────────────────────
 
 function fmt12(iso: string): string {
   return format(parseISO(iso), 'hh:mm a')
@@ -177,7 +215,21 @@ function fmtDur(mins: number): string {
   return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`
 }
 
-function feedRow(f: FeedEntry): Row {
+/** Canonical field set for one activity-log row, independent of column order. */
+export interface EntryFields {
+  date: string       // yyyy-mm-dd
+  activity: string   // e.g. "Feeding (L breast)"
+  startTime: string  // "06:20 PM"
+  endTime: string
+  duration: string   // "H:MM"
+  notes: string
+}
+
+function fixedRow(f: EntryFields): Row {
+  return [f.date, f.activity, f.startTime, f.endTime, f.duration, f.notes]
+}
+
+export function feedFields(f: FeedEntry): EntryFields {
   const typeLabel: Record<FeedEntry['type'], string> = {
     'breast-left': 'Feeding (L breast)',
     'breast-right': 'Feeding (R breast)',
@@ -189,52 +241,83 @@ function feedRow(f: FeedEntry): Row {
   const endIso = f.durationMinutes
     ? new Date(new Date(startIso).getTime() + f.durationMinutes * 60_000).toISOString()
     : ''
-  return [
-    typeLabel[f.type],
-    fmt12(startIso),
-    endIso ? fmt12(endIso) : '',
-    f.durationMinutes ? fmtDur(f.durationMinutes) : f.amountMl ? `${f.amountMl}ml` : '',
-    f.notes,
-    startIso.slice(0, 10),
-  ]
+  return {
+    date: startIso.slice(0, 10),
+    activity: typeLabel[f.type],
+    startTime: fmt12(startIso),
+    endTime: endIso ? fmt12(endIso) : '',
+    duration: f.durationMinutes ? fmtDur(f.durationMinutes) : f.amountMl ? `${f.amountMl}ml` : '',
+    notes: f.notes,
+  }
 }
 
-function sleepRow(s: SleepEntry): Row {
+export function sleepFields(s: SleepEntry): EntryFields {
   const mins =
     s.endTime
       ? Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60_000)
       : null
-  return [
-    s.type === 'night' ? 'Sleep (night)' : 'Sleep (nap)',
-    fmt12(s.startTime),
-    s.endTime ? fmt12(s.endTime) : '',
-    mins !== null ? fmtDur(mins) : '',
-    s.notes,
-    s.startTime.slice(0, 10),
-  ]
+  return {
+    date: s.startTime.slice(0, 10),
+    activity: s.type === 'night' ? 'Sleep (night)' : 'Sleep (nap)',
+    startTime: fmt12(s.startTime),
+    endTime: s.endTime ? fmt12(s.endTime) : '',
+    duration: mins !== null ? fmtDur(mins) : '',
+    notes: s.notes,
+  }
 }
 
-function diaperRow(d: DiaperEntry): Row {
+export function diaperFields(d: DiaperEntry): EntryFields {
   const mins =
     d.endTime
       ? Math.round((new Date(d.endTime).getTime() - new Date(d.startTime).getTime()) / 60_000)
       : null
-  return [
-    `Diaper (${d.type})`,
-    fmt12(d.startTime),
-    d.endTime ? fmt12(d.endTime) : '',
-    mins !== null ? fmtDur(mins) : '',
-    d.notes,
-    d.startTime.slice(0, 10),
-  ]
+  return {
+    date: d.startTime.slice(0, 10),
+    activity: `Diaper (${d.type})`,
+    startTime: fmt12(d.startTime),
+    endTime: d.endTime ? fmt12(d.endTime) : '',
+    duration: mins !== null ? fmtDur(mins) : '',
+    notes: d.notes,
+  }
+}
+
+// ── Header-aware row mapping ────────────────────────────────────────────────
+
+type ColKey = 'date' | 'activity' | 'start' | 'end' | 'duration' | 'notes'
+
+function classifyHeader(raw: string): ColKey | null {
+  const n = (raw ?? '').trim().toLowerCase()
+  if (!n) return null
+  if (n.includes('date')) return 'date'
+  if (n.includes('activity') || n.includes('type')) return 'activity'
+  if (n.includes('start')) return 'start'
+  if (n.includes('end')) return 'end'
+  if (n.includes('duration') || n.includes('length')) return 'duration'
+  if (n.includes('note')) return 'notes'
+  return null
+}
+
+/** Build a row matching an arbitrary header order, for appending into any tab. */
+function buildRowForHeaders(headers: string[], f: EntryFields): Row {
+  return headers.map((h) => {
+    switch (classifyHeader(h)) {
+      case 'date': return f.date
+      case 'activity': return f.activity
+      case 'start': return f.startTime
+      case 'end': return f.endTime
+      case 'duration': return f.duration
+      case 'notes': return f.notes
+      default: return ''
+    }
+  })
 }
 
 // ── Write helpers ───────────────────────────────────────────────────────────
 
-async function putSheet(token: string, sheetId: string, sheetName: string, rows: Row[]): Promise<void> {
-  const range = encodeURIComponent(`'${sheetName}'!A1`)
+async function putSheet(token: string, spreadsheetId: string, sheetName: string, rows: Row[]): Promise<void> {
+  const range = encodeURIComponent(`${quoteSheetName(sheetName)}!A1`)
   const r = await fetch(
-    `${SHEETS}/${sheetId}/values/${range}?valueInputOption=RAW`,
+    `${SHEETS}/${spreadsheetId}/values/${range}?valueInputOption=RAW`,
     {
       method: 'PUT',
       headers: auth(token),
@@ -244,7 +327,50 @@ async function putSheet(token: string, sheetId: string, sheetName: string, rows:
   if (!r.ok) throw new Error(`Sheet write "${sheetName}" ${r.status}: ${await r.text()}`)
 }
 
-// ── Main sync ───────────────────────────────────────────────────────────────
+async function fetchTabRawValues(
+  token: string,
+  spreadsheetId: string,
+  tabName: string,
+  range = 'A1:Z2000',
+): Promise<string[][]> {
+  const path = encodeURIComponent(`${quoteSheetName(tabName)}!${range}`)
+  const r = await fetch(`${SHEETS}/${spreadsheetId}/values/${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!r.ok) {
+    if (r.status === 403) throw new Error("Access denied — make sure you've shared this sheet with the connected account, or open it so 'anyone with the link can view'.")
+    throw new Error(`Could not read tab "${tabName}" (${r.status})`)
+  }
+  const json = await r.json()
+  return json.values ?? []
+}
+
+/**
+ * Append one activity-log entry to a tab, matching whatever column order that
+ * tab already uses. If the tab is empty, writes the standard header row first.
+ */
+export async function appendEntryRow(
+  token: string,
+  spreadsheetId: string,
+  tabName: string,
+  fields: EntryFields,
+): Promise<void> {
+  const headerRows = await fetchTabRawValues(token, spreadsheetId, tabName, 'A1:Z1')
+  let headers = headerRows[0] ?? []
+  if (headers.length === 0 || headers.every((h) => !h?.trim())) {
+    headers = DEFAULT_HEADERS
+    await putSheet(token, spreadsheetId, tabName, [headers])
+  }
+  const row = buildRowForHeaders(headers, fields)
+  const range = encodeURIComponent(`${quoteSheetName(tabName)}!A1`)
+  const r = await fetch(
+    `${SHEETS}/${spreadsheetId}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    { method: 'POST', headers: auth(token), body: JSON.stringify({ values: [row] }) },
+  )
+  if (!r.ok) throw new Error(`Could not add row to "${tabName}" (${r.status}): ${await r.text()}`)
+}
+
+// ── Main sync (full replace of the Activity Log + reference tabs) ──────────
 
 export interface SyncPayload {
   feeds: FeedEntry[]
@@ -265,14 +391,14 @@ export async function syncAllData(
 
   // Activity Log — sorted by date then start time
   const activityRows: Row[] = [
-    ['Activity', 'Start Time', 'End Time', 'Duration', 'Notes', 'Date'],
+    DEFAULT_HEADERS,
     ...[
-      ...feeds.map(feedRow),
-      ...sleep.map(sleepRow),
-      ...diaper.map(diaperRow),
-    ].sort((a, b) =>
-      String(a[5]).localeCompare(String(b[5])) || String(a[1]).localeCompare(String(b[1])),
-    ),
+      ...feeds.map(feedFields),
+      ...sleep.map(sleepFields),
+      ...diaper.map(diaperFields),
+    ]
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+      .map(fixedRow),
   ]
   await putSheet(token, spreadsheetId, 'Activity Log', activityRows)
 
@@ -327,9 +453,12 @@ export interface ImportedData {
   total: number
 }
 
+/** Thrown when a tab has no recognizable Date column and no fallback date was given. */
+export class MissingDateError extends Error {}
+
 /** Parse a 12h or 24h time string + a date string into an ISO datetime. */
 function parseTime(raw: string, dateStr: string): string | null {
-  const t = raw.trim()
+  const t = (raw ?? '').trim()
   if (!t) return null
 
   // "6:20:00 PM" — with seconds
@@ -354,25 +483,103 @@ function toISO(hStr: string, mStr: string, meridiem: string | undefined, dateStr
   return `${dateStr}T${String(h).padStart(2, '0')}:${m}:00`
 }
 
-/** Parse raw sheet rows (string[][]) into typed app entries. */
-export function parseActivityRows(rows: string[][], dateStr: string): ImportedData {
-  const result: ImportedData = { feeds: [], sleep: [], diaper: [], skipped: 0, total: 0 }
+/** Parse a date cell in whatever format a human typed it into. Returns yyyy-MM-dd. */
+function parseFlexibleDate(raw: string): string | null {
+  const t = (raw ?? '').trim()
+  if (!t) return null
 
-  // Skip header row(s) — look for "activity" in column 0
-  let start = 0
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i][0]?.trim().toLowerCase() === 'activity') { start = i + 1; break }
+  const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
+
+  const slash = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (slash) {
+    let [, mm, dd, yyyy] = slash
+    if (yyyy.length === 2) yyyy = `20${yyyy}`
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`
   }
 
-  for (let i = start; i < rows.length; i++) {
+  const parsed = new Date(t)
+  if (!isNaN(parsed.getTime())) return format(parsed, 'yyyy-MM-dd')
+  return null
+}
+
+/** Parse a duration cell like "1:30" or "90" (minutes) into a minute count. */
+function parseDurationToMinutes(raw: string): number | null {
+  const t = (raw ?? '').trim()
+  if (!t) return null
+  const m = t.match(/^(\d+):(\d{2})(?::\d{2})?$/)
+  if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+  const num = Number(t)
+  return isNaN(num) ? null : num
+}
+
+/**
+ * Parse raw sheet rows (string[][]) into typed app entries.
+ *
+ * Columns are detected by header name (not fixed position), so the sheet can
+ * be in any order (Date first, Activity first, extra columns, etc). If the
+ * sheet has its own Date column, that's the source of truth per-row (with
+ * fill-down for blank cells); `fallbackDateStr` is only used when no Date
+ * column exists at all, or a leading row is missing a date and nothing has
+ * been seen yet — if that happens and no fallback was given, this throws
+ * MissingDateError so the caller can prompt for one.
+ */
+export function parseActivityRows(
+  rows: string[][],
+  fallbackDateStr?: string,
+  tabLabel = 'this tab',
+): ImportedData {
+  const result: ImportedData = { feeds: [], sleep: [], diaper: [], skipped: 0, total: 0 }
+  if (rows.length === 0) return result
+
+  // Find the header row: the first row (within the first few) that contains
+  // a recognizable "activity" column.
+  let headerIdx = -1
+  let colMap: Partial<Record<ColKey, number>> = {}
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    const map: Partial<Record<ColKey, number>> = {}
+    rows[i].forEach((cell, idx) => {
+      const key = classifyHeader(cell)
+      if (key && map[key] === undefined) map[key] = idx
+    })
+    if (map.activity !== undefined) {
+      headerIdx = i
+      colMap = map
+      break
+    }
+  }
+  if (headerIdx === -1) return result // no usable header found — nothing to import
+
+  if (colMap.date === undefined && !fallbackDateStr) {
+    throw new MissingDateError(`${tabLabel} has no "Date" column — please pick a date to use for its rows.`)
+  }
+
+  let runningDate = fallbackDateStr ?? null
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i]
-    const activity = row[0]?.trim().toLowerCase() ?? ''
+    const activity = (colMap.activity !== undefined ? row[colMap.activity] : '')?.trim().toLowerCase() ?? ''
     if (!activity) continue
 
+    if (colMap.date !== undefined) {
+      const rowDate = parseFlexibleDate(row[colMap.date] ?? '')
+      if (rowDate) runningDate = rowDate
+    }
+    if (!runningDate) {
+      if (!fallbackDateStr) throw new MissingDateError(`${tabLabel} is missing a date for row ${i + 1} — please pick a fallback date.`)
+      runningDate = fallbackDateStr
+    }
+    const dateStr = runningDate
+
     result.total++
-    const startIso = parseTime(row[1] ?? '', dateStr)
-    const endIso   = parseTime(row[2] ?? '', dateStr)
-    const notes    = row[4]?.trim() ?? ''
+    const startIso = colMap.start !== undefined ? parseTime(row[colMap.start] ?? '', dateStr) : null
+    let endIso = colMap.end !== undefined ? parseTime(row[colMap.end] ?? '', dateStr) : null
+    const notes = colMap.notes !== undefined ? (row[colMap.notes]?.trim() ?? '') : ''
+
+    if (!endIso && startIso && colMap.duration !== undefined) {
+      const mins = parseDurationToMinutes(row[colMap.duration] ?? '')
+      if (mins) endIso = format(new Date(new Date(startIso).getTime() + mins * 60_000), "yyyy-MM-dd'T'HH:mm:ss")
+    }
 
     if (activity === 'feeding' || activity.startsWith('feeding')) {
       const durationMins =
@@ -414,23 +621,34 @@ export function parseActivityRows(rows: string[][], dateStr: string): ImportedDa
   return result
 }
 
-/** Fetch a spreadsheet by ID and parse its first visible sheet. */
+/** Fetch a single tab by name and parse it into typed entries. */
 export async function importFromSpreadsheet(
   token: string,
   spreadsheetId: string,
-  dateStr: string,
+  tabName: string,
+  fallbackDateStr?: string,
 ): Promise<ImportedData> {
-  const r = await fetch(
-    `${SHEETS}/${spreadsheetId}/values/A:F?majorDimension=ROWS`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  )
-  if (!r.ok) {
-    if (r.status === 403) throw new Error("Access denied — make sure you've shared this sheet with the connected account, or open it so 'anyone with the link can view'.")
-    throw new Error(`Could not read spreadsheet (${r.status})`)
+  const rows = await fetchTabRawValues(token, spreadsheetId, tabName)
+  return parseActivityRows(rows, fallbackDateStr, `The "${tabName}" tab`)
+}
+
+/** Fetch and merge multiple tabs from the same spreadsheet. */
+export async function importFromTabs(
+  token: string,
+  spreadsheetId: string,
+  tabNames: string[],
+  fallbackDateStr?: string,
+): Promise<ImportedData> {
+  const merged: ImportedData = { feeds: [], sleep: [], diaper: [], skipped: 0, total: 0 }
+  for (const tab of tabNames) {
+    const part = await importFromSpreadsheet(token, spreadsheetId, tab, fallbackDateStr)
+    merged.feeds.push(...part.feeds)
+    merged.sleep.push(...part.sleep)
+    merged.diaper.push(...part.diaper)
+    merged.skipped += part.skipped
+    merged.total += part.total
   }
-  const json = await r.json()
-  const rows: string[][] = json.values ?? []
-  return parseActivityRows(rows, dateStr)
+  return merged
 }
 
 /** Extract a spreadsheet ID from a Google Sheets URL, or return the value as-is. */
