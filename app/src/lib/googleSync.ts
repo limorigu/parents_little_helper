@@ -69,14 +69,19 @@ async function sheetsPost<T>(token: string, path: string, body: unknown): Promis
 
 // ── Drive folder helpers ────────────────────────────────────────────────────
 
+/** Escape single quotes for use inside a Drive API `q` query string literal. */
+function escapeQ(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
 /** Find or create a Drive folder, optionally inside a parent. */
 export async function findOrCreateFolder(
   token: string,
   name: string,
   parentId?: string,
 ): Promise<string> {
-  const parentQ = parentId ? ` and '${parentId}' in parents` : ''
-  const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false${parentQ}`
+  const parentQ = parentId ? ` and '${escapeQ(parentId)}' in parents` : ''
+  const q = `name='${escapeQ(name)}' and mimeType='application/vnd.google-apps.folder' and trashed=false${parentQ}`
   const { files } = await driveGet<{ files: { id: string }[] }>(
     token,
     `?q=${encodeURIComponent(q)}&fields=files(id)&spaces=drive`,
@@ -140,7 +145,7 @@ export async function findOrCreateSpreadsheet(
   folderId: string,
   title: string,
 ): Promise<string> {
-  const q = `name='${title}' and mimeType='application/vnd.google-apps.spreadsheet' and '${folderId}' in parents and trashed=false`
+  const q = `name='${escapeQ(title)}' and mimeType='application/vnd.google-apps.spreadsheet' and '${escapeQ(folderId)}' in parents and trashed=false`
   const { files } = await driveGet<{ files: { id: string }[] }>(
     token,
     `?q=${encodeURIComponent(q)}&fields=files(id)&spaces=drive`,
