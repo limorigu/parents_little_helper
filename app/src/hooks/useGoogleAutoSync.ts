@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { getToken } from '../lib/googleApi'
-import { appendEntryRow, feedFields, sleepFields, diaperFields } from '../lib/googleSync'
+import { appendEntryRow, feedFields, sleepFields, diaperFields, playFields } from '../lib/googleSync'
 import type { EntryFields } from '../lib/googleSync'
 
 /**
@@ -17,12 +17,14 @@ export function useGoogleAutoSync() {
   const feeds = useAppStore((s) => s.feeds)
   const sleep = useAppStore((s) => s.sleep)
   const diaper = useAppStore((s) => s.diaper)
+  const play = useAppStore((s) => s.play)
   const googleSheetId = useAppStore((s) => s.googleSheetId)
   const googleWriteSheetName = useAppStore((s) => s.googleWriteSheetName)
 
   const seenFeed = useRef<Set<string> | null>(null)
   const seenSleep = useRef<Set<string> | null>(null)
   const seenDiaper = useRef<Set<string> | null>(null)
+  const seenPlay = useRef<Set<string> | null>(null)
 
   function push(fieldsList: EntryFields[]) {
     if (!fieldsList.length || !googleSheetId) return
@@ -87,4 +89,21 @@ export function useGoogleAutoSync() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diaper])
+
+  useEffect(() => {
+    if (seenPlay.current === null) {
+      seenPlay.current = new Set(play.map((p) => p.id))
+      return
+    }
+    const fresh = []
+    for (const p of play) {
+      if (seenPlay.current.has(p.id)) break
+      fresh.push(p)
+    }
+    if (fresh.length) {
+      fresh.forEach((p) => seenPlay.current!.add(p.id))
+      push(fresh.map(playFields))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [play])
 }

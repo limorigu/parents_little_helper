@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 
 export interface SheetColumn {
   key: string
@@ -86,14 +86,14 @@ const CHIP_STYLES: Record<string, string> = {
   sage: 'bg-sage-100 text-sage-700 border-sage-500',
   marigold: 'bg-marigold-100 text-marigold-600 border-marigold-400',
   blush: 'bg-blush-100 text-blush-600 border-blush-400',
+  periwinkle: 'bg-periwinkle-100 text-periwinkle-700 border-periwinkle-500',
 }
 
-/** A pill that mimics a Google Sheets dropdown-validated cell. */
+/** A colored pill for the Activity column — plain label, not a dropdown/select. */
 export function SheetChip({ label, color = 'sage' }: { label: ReactNode; color?: keyof typeof CHIP_STYLES }) {
   return (
-    <span className={`inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg text-xs font-bold border-2 ${CHIP_STYLES[color]}`}>
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border-2 ${CHIP_STYLES[color]}`}>
       {label}
-      <ChevronDown size={12} className="opacity-50" />
     </span>
   )
 }

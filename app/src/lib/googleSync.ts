@@ -12,6 +12,7 @@ import type {
   FeedEntry,
   SleepEntry,
   DiaperEntry,
+  PlayEntry,
   GrowthEntry,
   RecordedMilestone,
   DoctorVisit,
@@ -266,6 +267,21 @@ export function sleepFields(s: SleepEntry): EntryFields {
   }
 }
 
+export function playFields(p: PlayEntry): EntryFields {
+  const mins =
+    p.endTime
+      ? Math.round((new Date(p.endTime).getTime() - new Date(p.startTime).getTime()) / 60_000)
+      : null
+  return {
+    date: p.startTime.slice(0, 10),
+    activity: 'Play',
+    startTime: fmt12(p.startTime),
+    endTime: p.endTime ? fmt12(p.endTime) : '',
+    duration: mins !== null ? fmtDur(mins) : '',
+    notes: p.notes,
+  }
+}
+
 export function diaperFields(d: DiaperEntry): EntryFields {
   const mins =
     d.endTime
@@ -376,6 +392,7 @@ export interface SyncPayload {
   feeds: FeedEntry[]
   sleep: SleepEntry[]
   diaper: DiaperEntry[]
+  play: PlayEntry[]
   growth: GrowthEntry[]
   recordedMilestones: RecordedMilestone[]
   doctorVisits: DoctorVisit[]
@@ -387,7 +404,7 @@ export async function syncAllData(
   spreadsheetId: string,
   data: SyncPayload,
 ): Promise<void> {
-  const { feeds, sleep, diaper, growth, recordedMilestones, doctorVisits } = data
+  const { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits } = data
 
   // Activity Log — sorted by date then start time
   const activityRows: Row[] = [
@@ -396,6 +413,7 @@ export async function syncAllData(
       ...feeds.map(feedFields),
       ...sleep.map(sleepFields),
       ...diaper.map(diaperFields),
+      ...play.map(playFields),
     ]
       .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
       .map(fixedRow),
@@ -449,8 +467,11 @@ export interface ImportedData {
   feeds: Omit<FeedEntry, 'id'>[]
   sleep: Omit<SleepEntry, 'id'>[]
   diaper: Omit<DiaperEntry, 'id'>[]
+  play: Omit<PlayEntry, 'id'>[]
   skipped: number
   total: number
+  /** Rows where a start/end time pair couldn't be reconciled into a sane, non-negative duration. */
+  warnings: string[]
 }
 
 /** Thrown when a tab has no recognizable Date column and no fallback date was given. */
@@ -514,6 +535,30 @@ function parseDurationToMinutes(raw: string): number | null {
 }
 
 /**
+ * Start/End are parsed as time-of-day against a shared date, so a session
+ * that runs past midnight (e.g. a nap starting at 10:30 PM and ending at
+ * 6:00 AM) naturally comes out with an end time "before" the start time on
+ * the same calendar day. If that happens, assume it rolled into the next day
+ * and shift the end date forward by 24h. If the duration is still zero or
+ * negative after that, we can't reliably reconcile it — rather than store a
+ * negative/nonsense duration, drop the end time and return a warning so the
+ * caller can surface it to the user.
+ */
+function resolveOvernightEnd(startIso: string, endIso: string): { endIso: string | null; warning?: string } {
+  let end = endIso
+  if (new Date(end).getTime() < new Date(startIso).getTime()) {
+    end = format(new Date(new Date(end).getTime() + 24 * 3_600_000), "yyyy-MM-dd'T'HH:mm:ss")
+  }
+  if (new Date(end).getTime() <= new Date(startIso).getTime()) {
+    return {
+      endIso: null,
+      warning: 'end time is before the start time (even assuming it rolled into the next day) — imported without an end time/duration',
+    }
+  }
+  return { endIso: end }
+}
+
+/**
  * Parse raw sheet rows (string[][]) into typed app entries.
  *
  * Columns are detected by header name (not fixed position), so the sheet can
@@ -529,7 +574,7 @@ export function parseActivityRows(
   fallbackDateStr?: string,
   tabLabel = 'this tab',
 ): ImportedData {
-  const result: ImportedData = { feeds: [], sleep: [], diaper: [], skipped: 0, total: 0 }
+  const result: ImportedData = { feeds: [], sleep: [], diaper: [], play: [], skipped: 0, total: 0, warnings: [] }
   if (rows.length === 0) return result
 
   // Find the header row: the first row (within the first few) that contains
@@ -574,6 +619,13 @@ export function parseActivityRows(
     result.total++
     const startIso = colMap.start !== undefined ? parseTime(row[colMap.start] ?? '', dateStr) : null
     let endIso = colMap.end !== undefined ? parseTime(row[colMap.end] ?? '', dateStr) : null
+
+    if (startIso && endIso) {
+      const resolved = resolveOvernightEnd(startIso, endIso)
+      endIso = resolved.endIso
+      if (resolved.warning) result.warnings.push(`${tabLabel}, row ${i + 1}: ${resolved.warning}`)
+    }
+
     const notes = colMap.notes !== undefined ? (row[colMap.notes]?.trim() ?? '') : ''
 
     if (!endIso && startIso && colMap.duration !== undefined) {
@@ -612,8 +664,14 @@ export function parseActivityRows(
         type: 'unknown',
         notes,
       })
+    } else if (activity === 'play' || activity.startsWith('play')) {
+      result.play.push({
+        startTime: startIso ?? `${dateStr}T00:00:00`,
+        endTime: endIso,
+        notes,
+      })
     } else {
-      // Play, custom activity, etc. — acknowledged but not imported
+      // Unrecognized custom activity — acknowledged but not imported
       result.skipped++
     }
   }
@@ -639,14 +697,16 @@ export async function importFromTabs(
   tabNames: string[],
   fallbackDateStr?: string,
 ): Promise<ImportedData> {
-  const merged: ImportedData = { feeds: [], sleep: [], diaper: [], skipped: 0, total: 0 }
+  const merged: ImportedData = { feeds: [], sleep: [], diaper: [], play: [], skipped: 0, total: 0, warnings: [] }
   for (const tab of tabNames) {
     const part = await importFromSpreadsheet(token, spreadsheetId, tab, fallbackDateStr)
     merged.feeds.push(...part.feeds)
     merged.sleep.push(...part.sleep)
     merged.diaper.push(...part.diaper)
+    merged.play.push(...part.play)
     merged.skipped += part.skipped
     merged.total += part.total
+    merged.warnings.push(...part.warnings)
   }
   return merged
 }

@@ -10,7 +10,7 @@ import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SheetTable, SheetChip, type SheetColumn, type SheetRow } from '../components/ui/SheetTable'
 import { PageShell } from '../components/layout/PageShell'
-import type { FeedEntry, SleepEntry, DiaperEntry } from '../store/useAppStore'
+import type { FeedEntry, SleepEntry, DiaperEntry, PlayEntry } from '../store/useAppStore'
 
 const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'date', label: 'Date' },
@@ -21,7 +21,7 @@ const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'notes', label: 'Notes' },
 ]
 
-type Tab = 'feed' | 'sleep' | 'diaper'
+type Tab = 'feed' | 'sleep' | 'diaper' | 'play'
 
 const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string }> = [
   { value: 'breast-left', label: 'Left breast', icon: '🤱' },
@@ -130,9 +130,11 @@ function SleepModal({
   const [end, setEnd] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
+  const [endError, setEndError] = useState('')
 
   useEffect(() => {
     if (!open) return
+    setEndError('')
     if (editEntry) {
       setType(editEntry.type)
       setStart(editEntry.startTime)
@@ -151,6 +153,12 @@ function SleepModal({
   }, [open, editEntry, active])
 
   function save() {
+    const startTime = active && !editEntry ? active.startTime : start
+    if (end && new Date(end).getTime() <= new Date(startTime).getTime()) {
+      setEndError("End time can't be before the start time")
+      return
+    }
+    setEndError('')
     if (editEntry) {
       updateSleep(editEntry.id, { startTime: start, endTime: end || null, type, location, notes })
     } else if (active) {
@@ -187,7 +195,8 @@ function SleepModal({
           label={active && !editEntry ? 'End time' : 'End time (optional — leave blank if still sleeping)'}
           type="datetime-local"
           value={end}
-          onChange={(e) => setEnd(e.target.value)}
+          onChange={(e) => { setEnd(e.target.value); setEndError('') }}
+          error={endError}
         />
         {showFullForm && (
           <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any observations…" />
@@ -250,6 +259,61 @@ function DiaperModal({ open, onClose, editEntry }: { open: boolean; onClose: () 
   )
 }
 
+// ── Play modal ───────────────────────────────────────────────────────────────
+
+function PlayModal({ open, onClose, editEntry }: { open: boolean; onClose: () => void; editEntry?: PlayEntry | null }) {
+  const { addPlay, updatePlay } = useAppStore()
+  const [start, setStart] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+  const [end, setEnd] = useState('')
+  const [notes, setNotes] = useState('')
+  const [endError, setEndError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setEndError('')
+    if (editEntry) {
+      setStart(editEntry.startTime)
+      setEnd(editEntry.endTime || '')
+      setNotes(editEntry.notes)
+    } else {
+      setStart(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+      setEnd('')
+      setNotes('')
+    }
+  }, [open, editEntry])
+
+  function save() {
+    if (end && new Date(end).getTime() <= new Date(start).getTime()) {
+      setEndError("End time can't be before the start time")
+      return
+    }
+    setEndError('')
+    if (editEntry) {
+      updatePlay(editEntry.id, { startTime: start, endTime: end || null, notes })
+    } else {
+      addPlay({ id: uid(), startTime: start, endTime: end || null, notes })
+    }
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={editEntry ? 'Edit play session' : 'Log play'}>
+      <div className="space-y-4">
+        <Input label="Start time" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+        <Input
+          label="End time (optional)"
+          type="datetime-local"
+          value={end}
+          onChange={(e) => { setEnd(e.target.value); setEndError('') }}
+          error={endError}
+        />
+        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="What did you get up to?" />
+        <Button fullWidth onClick={save}>{editEntry ? 'Save changes' : 'Save play session'}</Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Shared label maps ─────────────────────────────────────────────────────────
 
 const FEED_LABELS: Record<string, string> = {
@@ -270,15 +334,17 @@ const DIAPER_LABELS: Record<DiaperEntry['type'], string> = {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function Tracker() {
-  const { feeds, sleep, diaper, deleteFeed, deleteSleep, deleteDiaper } = useAppStore()
+  const { feeds, sleep, diaper, play, deleteFeed, deleteSleep, deleteDiaper, deletePlay } = useAppStore()
   const [tab, setTab] = useState<Tab>('feed')
   const [feedModal, setFeedModal] = useState(false)
   const [sleepModal, setSleepModal] = useState(false)
   const [diaperModal, setDiaperModal] = useState(false)
+  const [playModal, setPlayModal] = useState(false)
   const [activeSleep, setActiveSleep] = useState<SleepEntry | null>(null)
   const [editFeed, setEditFeed] = useState<FeedEntry | null>(null)
   const [editSleepEntry, setEditSleepEntry] = useState<SleepEntry | null>(null)
   const [editDiaperEntry, setEditDiaperEntry] = useState<DiaperEntry | null>(null)
+  const [editPlayEntry, setEditPlayEntry] = useState<PlayEntry | null>(null)
 
   function openEditFeed(id: string) {
     const entry = feeds.find((f) => f.id === id)
@@ -305,6 +371,14 @@ export function Tracker() {
     }
   }
 
+  function openEditPlay(id: string) {
+    const entry = play.find((p) => p.id === id)
+    if (entry) {
+      setEditPlayEntry(entry)
+      setPlayModal(true)
+    }
+  }
+
   const todayStr = today()
   const recent = subDays(new Date(), 3)
 
@@ -318,6 +392,10 @@ export function Tracker() {
 
   const recentDiaper = diaper
     .filter((d) => new Date(d.startTime) >= recent)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+
+  const recentPlay = play
+    .filter((p) => new Date(p.startTime) >= recent)
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 
   const todayFeeds = feeds.filter((f) => f.date.startsWith(todayStr))
@@ -354,6 +432,12 @@ export function Tracker() {
             className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'diaper' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
           >
             🧷 Nappy
+          </button>
+          <button
+            onClick={() => setTab('play')}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'play' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+          >
+            🧸 Play
           </button>
         </div>
 
@@ -462,6 +546,40 @@ export function Tracker() {
             )}
           </div>
         )}
+
+        {/* Play tab */}
+        {tab === 'play' && (
+          <div className="space-y-3">
+            <Button fullWidth onClick={() => { setEditPlayEntry(null); setPlayModal(true) }}>
+              <Plus size={15} /> Log play
+            </Button>
+            {recentPlay.length === 0 ? (
+              <EmptyState icon="🧸" title="No play sessions logged yet" description="Tap 'Log play' to start tracking." />
+            ) : (
+              <SheetTable
+                columns={SHEET_COLUMNS}
+                onEditRow={openEditPlay}
+                onDeleteRow={deletePlay}
+                rows={recentPlay.map<SheetRow>((p) => {
+                  const mins = p.endTime
+                    ? Math.round((new Date(p.endTime).getTime() - new Date(p.startTime).getTime()) / 60_000)
+                    : null
+                  return {
+                    id: p.id,
+                    cells: {
+                      date: format(parseISO(p.startTime), 'd MMM'),
+                      activity: <SheetChip label="🧸 Play" color="periwinkle" />,
+                      start: formatTime(p.startTime),
+                      end: p.endTime ? formatTime(p.endTime) : '—',
+                      duration: mins !== null ? (mins >= 60 ? `${(mins / 60).toFixed(1)}h` : `${mins}m`) : '—',
+                      notes: p.notes || '—',
+                    },
+                  }
+                })}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       <FeedModal
@@ -479,6 +597,11 @@ export function Tracker() {
         open={diaperModal}
         onClose={() => { setDiaperModal(false); setEditDiaperEntry(null) }}
         editEntry={editDiaperEntry}
+      />
+      <PlayModal
+        open={playModal}
+        onClose={() => { setPlayModal(false); setEditPlayEntry(null) }}
+        editEntry={editPlayEntry}
       />
     </PageShell>
   )

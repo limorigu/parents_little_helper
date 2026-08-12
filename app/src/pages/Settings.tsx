@@ -152,8 +152,8 @@ function GoogleSection() {
   const store = useAppStore()
   const {
     baby, googleClientId, googleFolderId, googleSheetId, googleLastSync, googleWriteSheetName,
-    setGoogleConfig, feeds, sleep, diaper, growth, recordedMilestones, doctorVisits,
-    addFeed, addSleep, addDiaper,
+    setGoogleConfig, feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits,
+    addFeed, addSleep, addDiaper, addPlay,
   } = store
 
   const [clientIdInput, setClientIdInput] = useState(googleClientId)
@@ -208,7 +208,7 @@ function GoogleSection() {
       setGoogleConfig({ clientId: clientIdInput.trim() })
       // Immediately set up Drive folder + sheet on first connect
       const { sheetId } = await ensureDriveAndSheet(token)
-      await syncAllData(token, sheetId, { feeds, sleep, diaper, growth, recordedMilestones, doctorVisits })
+      await syncAllData(token, sheetId, { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits })
       setGoogleConfig({ lastSync: new Date().toISOString() })
       setStatus('success')
       setTimeout(() => setStatus('idle'), 3000)
@@ -239,7 +239,7 @@ function GoogleSection() {
     setErrorMsg('')
     try {
       const { sheetId } = await ensureDriveAndSheet(token)
-      await syncAllData(token, sheetId, { feeds, sleep, diaper, growth, recordedMilestones, doctorVisits })
+      await syncAllData(token, sheetId, { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits })
       setGoogleConfig({ lastSync: new Date().toISOString() })
       setStatus('success')
       setTimeout(() => setStatus('idle'), 3000)
@@ -321,14 +321,50 @@ function GoogleSection() {
     }
   }
 
+  /** Key an entry by its start time + end time so re-importing the same sheet doesn't duplicate rows. */
+  function timeKey(startTime: string, endTime: string | null) {
+    return `${startTime}|${endTime ?? ''}`
+  }
+
   function handleConfirmImport() {
     if (!importPreview) return
-    importPreview.feeds.forEach((f) => addFeed({ ...f, id: uid() }))
-    importPreview.sleep.forEach((s) => addSleep({ ...s, id: uid() }))
-    importPreview.diaper.forEach((d) => addDiaper({ ...d, id: uid() }))
 
-    const total = importPreview.feeds.length + importPreview.sleep.length + importPreview.diaper.length
-    setImportSuccess(`Imported ${total} entries successfully.`)
+    const existingFeedKeys = new Set(feeds.map((f) => f.date))
+    const existingSleepKeys = new Set(sleep.map((s) => timeKey(s.startTime, s.endTime)))
+    const existingDiaperKeys = new Set(diaper.map((d) => timeKey(d.startTime, d.endTime)))
+    const existingPlayKeys = new Set(play.map((p) => timeKey(p.startTime, p.endTime)))
+
+    let added = 0
+    let duplicates = 0
+
+    importPreview.feeds.forEach((f) => {
+      if (existingFeedKeys.has(f.date)) { duplicates++; return }
+      addFeed({ ...f, id: uid() })
+      added++
+    })
+    importPreview.sleep.forEach((s) => {
+      const key = timeKey(s.startTime, s.endTime)
+      if (existingSleepKeys.has(key)) { duplicates++; return }
+      addSleep({ ...s, id: uid() })
+      added++
+    })
+    importPreview.diaper.forEach((d) => {
+      const key = timeKey(d.startTime, d.endTime)
+      if (existingDiaperKeys.has(key)) { duplicates++; return }
+      addDiaper({ ...d, id: uid() })
+      added++
+    })
+    importPreview.play.forEach((p) => {
+      const key = timeKey(p.startTime, p.endTime)
+      if (existingPlayKeys.has(key)) { duplicates++; return }
+      addPlay({ ...p, id: uid() })
+      added++
+    })
+
+    setImportSuccess(
+      `Imported ${added} entr${added === 1 ? 'y' : 'ies'}` +
+      (duplicates ? ` (skipped ${duplicates} already in your log).` : '.'),
+    )
     setImportPreview(null)
     setImportUrl('')
     setImportTabs(null)
@@ -595,11 +631,21 @@ function GoogleSection() {
                         <li>🍼 {importPreview.feeds.length} feeding{importPreview.feeds.length !== 1 ? 's' : ''}</li>
                         <li>🌙 {importPreview.sleep.length} sleep session{importPreview.sleep.length !== 1 ? 's' : ''}</li>
                         <li>🧷 {importPreview.diaper.length} nappy change{importPreview.diaper.length !== 1 ? 's' : ''}</li>
+                        <li>🧸 {importPreview.play.length} play session{importPreview.play.length !== 1 ? 's' : ''}</li>
                         {importPreview.skipped > 0 && (
-                          <li className="text-stone-400">↳ {importPreview.skipped} other rows skipped (Play, custom activities)</li>
+                          <li className="text-stone-400">↳ {importPreview.skipped} other row{importPreview.skipped !== 1 ? 's' : ''} skipped (unrecognized activity)</li>
                         )}
                       </ul>
+                      <p className="text-xs text-periwinkle-500 mt-1.5">Rows already in your log won't be duplicated.</p>
                     </div>
+                    {importPreview.warnings.length > 0 && (
+                      <div className="bg-blush-50 border border-blush-200 rounded-xl p-3 text-xs text-blush-700 space-y-1">
+                        <p className="font-medium flex items-center gap-1.5"><AlertCircle size={13} /> Couldn't reconcile {importPreview.warnings.length} row{importPreview.warnings.length !== 1 ? 's' : ''}</p>
+                        <ul className="space-y-1 text-blush-600">
+                          {importPreview.warnings.map((w, i) => <li key={i}>• {w}</li>)}
+                        </ul>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => setImportPreview(null)}>Back</Button>
                       <Button fullWidth onClick={handleConfirmImport}>Confirm import</Button>

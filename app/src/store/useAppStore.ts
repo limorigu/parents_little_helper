@@ -109,6 +109,13 @@ export interface DiaperEntry {
   notes: string
 }
 
+export interface PlayEntry {
+  id: string
+  startTime: string   // ISO datetime
+  endTime: string | null
+  notes: string
+}
+
 export interface LocalActivity {
   id: string
   name: string
@@ -125,6 +132,7 @@ interface AppState {
   feeds: FeedEntry[]
   sleep: SleepEntry[]
   diaper: DiaperEntry[]
+  play: PlayEntry[]
   growth: GrowthEntry[]
   plans: DailyPlan[]
   doctorVisits: DoctorVisit[]
@@ -155,6 +163,10 @@ interface AppState {
   addDiaper: (entry: DiaperEntry) => void
   updateDiaper: (id: string, updates: Partial<DiaperEntry>) => void
   deleteDiaper: (id: string) => void
+
+  addPlay: (entry: PlayEntry) => void
+  updatePlay: (id: string, updates: Partial<PlayEntry>) => void
+  deletePlay: (id: string) => void
 
   addGrowth: (entry: GrowthEntry) => void
   updateGrowth: (id: string, updates: Partial<GrowthEntry>) => void
@@ -209,6 +221,7 @@ export const useAppStore = create<AppState>()(
       feeds: [],
       sleep: [],
       diaper: [],
+      play: [],
       growth: [],
       plans: [],
       doctorVisits: [],
@@ -259,6 +272,15 @@ export const useAppStore = create<AppState>()(
         })),
       deleteDiaper: (id) =>
         set((s) => ({ diaper: s.diaper.filter((d) => d.id !== id) })),
+
+      addPlay: (entry) =>
+        set((s) => ({ play: [entry, ...s.play] })),
+      updatePlay: (id, updates) =>
+        set((s) => ({
+          play: s.play.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+        })),
+      deletePlay: (id) =>
+        set((s) => ({ play: s.play.filter((p) => p.id !== id) })),
 
       addGrowth: (entry) =>
         set((s) => ({ growth: [entry, ...s.growth] })),
