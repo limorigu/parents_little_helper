@@ -101,6 +101,14 @@ export interface CelebrationPhoto {
   capturedAt: string // ISO
 }
 
+export interface DiaperEntry {
+  id: string
+  startTime: string   // ISO datetime
+  endTime: string | null
+  type: 'wet' | 'dirty' | 'both' | 'unknown'
+  notes: string
+}
+
 export interface LocalActivity {
   id: string
   name: string
@@ -116,12 +124,19 @@ interface AppState {
   recordedMilestones: RecordedMilestone[]
   feeds: FeedEntry[]
   sleep: SleepEntry[]
+  diaper: DiaperEntry[]
   growth: GrowthEntry[]
   plans: DailyPlan[]
   doctorVisits: DoctorVisit[]
   localActivities: LocalActivity[]
   lastActivityFetch: string | null
   celebrations: CelebrationPhoto[]
+
+  // Google Sheets/Drive integration
+  googleClientId: string
+  googleFolderId: string | null
+  googleSheetId: string | null
+  googleLastSync: string | null
 
   setBaby: (updates: Partial<BabyProfile>) => void
   addRecordedMilestone: (m: RecordedMilestone) => void
@@ -136,6 +151,10 @@ interface AppState {
   updateSleep: (id: string, updates: Partial<SleepEntry>) => void
   deleteSleep: (id: string) => void
 
+  addDiaper: (entry: DiaperEntry) => void
+  updateDiaper: (id: string, updates: Partial<DiaperEntry>) => void
+  deleteDiaper: (id: string) => void
+
   addGrowth: (entry: GrowthEntry) => void
   updateGrowth: (id: string, updates: Partial<GrowthEntry>) => void
 
@@ -149,6 +168,20 @@ interface AppState {
   setLocalActivities: (activities: LocalActivity[], fetchedAt: string) => void
   addCelebration: (c: CelebrationPhoto) => void
   deleteCelebration: (id: string) => void
+
+  setGoogleConfig: (cfg: {
+    clientId?: string
+    folderId?: string | null
+    sheetId?: string | null
+    lastSync?: string | null
+  }) => void
+}
+
+const defaultGoogleConfig = {
+  googleClientId: '',
+  googleFolderId: null as string | null,
+  googleSheetId: null as string | null,
+  googleLastSync: null as string | null,
 }
 
 const defaultBaby: BabyProfile = {
@@ -171,12 +204,14 @@ export const useAppStore = create<AppState>()(
       recordedMilestones: [],
       feeds: [],
       sleep: [],
+      diaper: [],
       growth: [],
       plans: [],
       doctorVisits: [],
       localActivities: [],
       lastActivityFetch: null,
       celebrations: [],
+      ...defaultGoogleConfig,
 
       setBaby: (updates) =>
         set((s) => ({ baby: { ...s.baby, ...updates } })),
@@ -211,6 +246,15 @@ export const useAppStore = create<AppState>()(
         })),
       deleteSleep: (id) =>
         set((s) => ({ sleep: s.sleep.filter((sl) => sl.id !== id) })),
+
+      addDiaper: (entry) =>
+        set((s) => ({ diaper: [entry, ...s.diaper] })),
+      updateDiaper: (id, updates) =>
+        set((s) => ({
+          diaper: s.diaper.map((d) => (d.id === id ? { ...d, ...updates } : d)),
+        })),
+      deleteDiaper: (id) =>
+        set((s) => ({ diaper: s.diaper.filter((d) => d.id !== id) })),
 
       addGrowth: (entry) =>
         set((s) => ({ growth: [entry, ...s.growth] })),
@@ -256,6 +300,14 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ celebrations: [c, ...s.celebrations] })),
       deleteCelebration: (id) =>
         set((s) => ({ celebrations: s.celebrations.filter((c) => c.id !== id) })),
+
+      setGoogleConfig: (cfg) =>
+        set((s) => ({
+          googleClientId: cfg.clientId ?? s.googleClientId,
+          googleFolderId: cfg.folderId !== undefined ? cfg.folderId : s.googleFolderId,
+          googleSheetId: cfg.sheetId !== undefined ? cfg.sheetId : s.googleSheetId,
+          googleLastSync: cfg.lastSync !== undefined ? cfg.lastSync : s.googleLastSync,
+        })),
     }),
     { name: 'parents-little-helper' }
   )

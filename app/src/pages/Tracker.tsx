@@ -10,9 +10,9 @@ import { Modal } from '../components/ui/Modal'
 import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageShell } from '../components/layout/PageShell'
-import type { FeedEntry, SleepEntry } from '../store/useAppStore'
+import type { FeedEntry, SleepEntry, DiaperEntry } from '../store/useAppStore'
 
-type Tab = 'feed' | 'sleep'
+type Tab = 'feed' | 'sleep' | 'diaper'
 
 const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string }> = [
   { value: 'breast-left', label: 'Left breast', icon: '🤱' },
@@ -21,6 +21,15 @@ const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string 
   { value: 'bottle-pumped', label: 'Pumped milk', icon: '🍼' },
   { value: 'solid', label: 'Solid food', icon: '🥣' },
 ]
+
+const DIAPER_TYPES: Array<{ value: DiaperEntry['type']; label: string; icon: string }> = [
+  { value: 'wet', label: 'Wet', icon: '💧' },
+  { value: 'dirty', label: 'Dirty', icon: '💩' },
+  { value: 'both', label: 'Both', icon: '🔄' },
+  { value: 'unknown', label: "Not sure", icon: '❓' },
+]
+
+// ── Feed modal ───────────────────────────────────────────────────────────────
 
 function FeedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { addFeed } = useAppStore()
@@ -71,6 +80,8 @@ function FeedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     </Modal>
   )
 }
+
+// ── Sleep modal ──────────────────────────────────────────────────────────────
 
 function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => void; active: SleepEntry | null }) {
   const { addSleep, updateSleep } = useAppStore()
@@ -124,6 +135,44 @@ function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => v
   )
 }
 
+// ── Diaper modal ─────────────────────────────────────────────────────────────
+
+function DiaperModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { addDiaper } = useAppStore()
+  const [dtype, setDtype] = useState<DiaperEntry['type']>('wet')
+  const [time, setTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+  const [notes, setNotes] = useState('')
+
+  function save() {
+    addDiaper({ id: uid(), startTime: time, endTime: null, type: dtype, notes })
+    setNotes('')
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Log a nappy change">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          {DIAPER_TYPES.map((dt) => (
+            <button
+              key={dt.value}
+              onClick={() => setDtype(dt.value)}
+              className={`p-3 rounded-xl border text-sm text-left transition-all ${dtype === dt.value ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300'}`}
+            >
+              <span className="mr-1">{dt.icon}</span> {dt.label}
+            </button>
+          ))}
+        </div>
+        <Input label="Time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} />
+        <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Colour, rash, anything notable…" />
+        <Button fullWidth onClick={save}>Save nappy change</Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Shared label maps ─────────────────────────────────────────────────────────
+
 const FEED_LABELS: Record<string, string> = {
   'breast-left': '🤱 Left',
   'breast-right': '🤱 Right',
@@ -132,11 +181,21 @@ const FEED_LABELS: Record<string, string> = {
   solid: '🥣 Solid',
 }
 
+const DIAPER_LABELS: Record<DiaperEntry['type'], string> = {
+  wet: '💧 Wet',
+  dirty: '💩 Dirty',
+  both: '🔄 Both',
+  unknown: '❓ Unknown',
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export function Tracker() {
-  const { feeds, sleep, deleteFeed, deleteSleep } = useAppStore()
+  const { feeds, sleep, diaper, deleteFeed, deleteSleep, deleteDiaper } = useAppStore()
   const [tab, setTab] = useState<Tab>('feed')
   const [feedModal, setFeedModal] = useState(false)
   const [sleepModal, setSleepModal] = useState(false)
+  const [diaperModal, setDiaperModal] = useState(false)
   const [activeSleep, setActiveSleep] = useState<SleepEntry | null>(null)
 
   const todayStr = today()
@@ -150,13 +209,23 @@ export function Tracker() {
     .filter((s) => new Date(s.startTime) >= recent)
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 
+  const recentDiaper = diaper
+    .filter((d) => new Date(d.startTime) >= recent)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+
   const todayFeeds = feeds.filter((f) => f.date.startsWith(todayStr))
+  const todayDiapers = diaper.filter((d) => d.startTime.startsWith(todayStr))
   const activeSleepSession = sleep.find((s) => !s.endTime)
+
+  const subtitleParts = [
+    todayFeeds.length ? `${todayFeeds.length} feed${todayFeeds.length !== 1 ? 's' : ''}` : null,
+    todayDiapers.length ? `${todayDiapers.length} nappy${todayDiapers.length !== 1 ? ' changes' : ' change'}` : null,
+  ].filter(Boolean)
 
   return (
     <PageShell
-      title="Feed & Sleep"
-      subtitle={`${todayFeeds.length} feeds logged today`}
+      title="Tracker"
+      subtitle={subtitleParts.length ? subtitleParts.join(' · ') + ' today' : 'Nothing logged yet today'}
     >
       <div className="space-y-4">
         {/* Tab switcher */}
@@ -173,6 +242,12 @@ export function Tracker() {
           >
             🌙 Sleep
           </button>
+          <button
+            onClick={() => setTab('diaper')}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'diaper' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+          >
+            🧷 Nappy
+          </button>
         </div>
 
         {/* Feed tab */}
@@ -181,7 +256,6 @@ export function Tracker() {
             <Button fullWidth onClick={() => setFeedModal(true)}>
               <Plus size={15} /> Log a feed
             </Button>
-
             {recentFeeds.length === 0 ? (
               <EmptyState icon="🍼" title="No feeds logged yet" description="Tap 'Log a feed' to start tracking." />
             ) : (
@@ -227,14 +301,13 @@ export function Tracker() {
                 <Plus size={15} /> Log sleep
               </Button>
             )}
-
             {recentSleep.length === 0 ? (
               <EmptyState icon="🌙" title="No sleep logged yet" description="Tap 'Log sleep' to start tracking." />
             ) : (
               <div className="space-y-2">
                 {recentSleep.map((s) => {
                   const mins = s.endTime
-                    ? Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000)
+                    ? Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60_000)
                     : null
                   return (
                     <Card key={s.id} padding="sm" className="flex items-center gap-3">
@@ -265,10 +338,40 @@ export function Tracker() {
             )}
           </div>
         )}
+
+        {/* Diaper tab */}
+        {tab === 'diaper' && (
+          <div className="space-y-3">
+            <Button fullWidth onClick={() => setDiaperModal(true)}>
+              <Plus size={15} /> Log nappy change
+            </Button>
+            {recentDiaper.length === 0 ? (
+              <EmptyState icon="🧷" title="No nappy changes logged yet" description="Tap above to start tracking." />
+            ) : (
+              <div className="space-y-2">
+                {recentDiaper.map((d) => (
+                  <Card key={d.id} padding="sm" className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-stone-700">{DIAPER_LABELS[d.type]}</p>
+                      <p className="text-xs text-stone-400">
+                        {formatTime(d.startTime)} · {format(parseISO(d.startTime), 'd MMM')}
+                      </p>
+                      {d.notes && <p className="text-xs text-stone-500 mt-0.5">{d.notes}</p>}
+                    </div>
+                    <button onClick={() => deleteDiaper(d.id)} className="text-stone-300 hover:text-blush-500 transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <FeedModal open={feedModal} onClose={() => setFeedModal(false)} />
       <SleepModal open={sleepModal} onClose={() => setSleepModal(false)} active={activeSleep} />
+      <DiaperModal open={diaperModal} onClose={() => setDiaperModal(false)} />
     </PageShell>
   )
 }

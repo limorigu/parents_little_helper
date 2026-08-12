@@ -1,58 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
-import { getBabyAgeLabel, normaliseQuotes } from '../lib/utils'
+import { getBabyAgeLabel, normaliseQuotes, today, uid } from '../lib/utils'
+import { signIn, signOut, getToken, isSignedIn } from '../lib/googleApi'
+import {
+  setupDrive,
+  findOrCreateSpreadsheet,
+  syncAllData,
+  importFromSpreadsheet,
+  extractSpreadsheetId,
+} from '../lib/googleSync'
+import type { ImportedData } from '../lib/googleSync'
 
-export function Settings() {
-  const { baby, setBaby } = useAppStore()
-  const navigate = useNavigate()
-  const [form, setForm] = useState({ ...baby })
-  const [saved, setSaved] = useState(false)
+// ── Baby profile form ────────────────────────────────────────────────────────
 
-  useEffect(() => { setForm({ ...baby }) }, [baby])
-
-  function set(key: string, value: string | boolean | number | null) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === 'string' ? normaliseQuotes(value) : value }))
-  }
-
-  function save() {
-    setBaby(form)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-    if (!baby.onboardingComplete) {
-      setBaby({ ...form, onboardingComplete: true })
-      navigate('/')
-    }
-  }
-
-  const isOnboarding = !baby.onboardingComplete
-
-  return (
-    <div className={isOnboarding ? 'min-h-screen bg-cream-100 flex items-center justify-center p-5' : ''}>
-      {isOnboarding ? (
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <span className="font-display italic text-stone-800 text-3xl block leading-tight">Parents'</span>
-            <span className="font-display text-stone-800 text-3xl block leading-tight">little helper</span>
-            <div className="w-8 h-0.5 bg-blush-300 mx-auto mt-3 rounded-full mb-4" />
-            <p className="text-stone-500 text-sm">Let's get to know your little one.</p>
-          </div>
-          <OnboardingForm form={form} set={set} onSave={save} isOnboarding />
-        </div>
-      ) : (
-        <PageShell title="Settings" subtitle="Your profile & preferences">
-          <OnboardingForm form={form} set={set} onSave={save} saved={saved} />
-        </PageShell>
-      )}
-    </div>
-  )
-}
-
-function OnboardingForm({ form, set, onSave, isOnboarding = false, saved = false }: {
+function ProfileSection({
+  form,
+  set,
+  onSave,
+  isOnboarding = false,
+  saved = false,
+}: {
   form: ReturnType<typeof useAppStore.getState>['baby']
   set: (key: string, value: string | boolean | number | null) => void
   onSave: () => void
@@ -79,9 +52,7 @@ function OnboardingForm({ form, set, onSave, isOnboarding = false, saved = false
             onChange={(e) => set('birthDate', e.target.value)}
           />
           {form.birthDate && (
-            <p className="text-xs text-stone-400">
-              {getBabyAgeLabel(form.birthDate)}
-            </p>
+            <p className="text-xs text-stone-400">{getBabyAgeLabel(form.birthDate)}</p>
           )}
           <div>
             <label className="block text-sm font-medium text-stone-600 mb-1.5">Sex assigned at birth</label>
@@ -163,8 +134,359 @@ function OnboardingForm({ form, set, onSave, isOnboarding = false, saved = false
 
       {!isOnboarding && (
         <p className="text-xs text-center text-stone-400">
-          All your data is stored locally on this device only.
+          All your data is stored locally on this device only, unless you opt in to Google Sync below.
         </p>
+      )}
+    </div>
+  )
+}
+
+// ── Google Sync section ───────────────────────────────────────────────────────
+
+type SyncStatus = 'idle' | 'connecting' | 'syncing' | 'importing' | 'previewing' | 'error' | 'success'
+
+function GoogleSection() {
+  const store = useAppStore()
+  const {
+    baby, googleClientId, googleFolderId, googleSheetId, googleLastSync,
+    setGoogleConfig, feeds, sleep, diaper, growth, recordedMilestones, doctorVisits,
+    addFeed, addSleep, addDiaper,
+  } = store
+
+  const [clientIdInput, setClientIdInput] = useState(googleClientId)
+  const [status, setStatus] = useState<SyncStatus>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+
+  // Import form state
+  const [importUrl, setImportUrl] = useState('')
+  const [importDate, setImportDate] = useState(today())
+  const [importPreview, setImportPreview] = useState<ImportedData | null>(null)
+  const [showImport, setShowImport] = useState(false)
+  const [importSuccess, setImportSuccess] = useState('')
+
+  // Derive connection from in-memory token (re-checks on each render)
+  const connected = isSignedIn()
+
+  function err(msg: string) { setStatus('error'); setErrorMsg(msg) }
+
+  async function ensureDriveAndSheet(token: string): Promise<{ folderId: string; sheetId: string }> {
+    let folderId = googleFolderId
+    let sheetId = googleSheetId
+
+    if (!folderId || !sheetId) {
+      const { folderId: fi } = await setupDrive(token, baby.name)
+      folderId = fi
+      const title = baby.name ? `${baby.name}'s Log` : "Baby's Log"
+      sheetId = await findOrCreateSpreadsheet(token, folderId, title)
+      setGoogleConfig({ folderId, sheetId })
+    }
+    return { folderId, sheetId }
+  }
+
+  async function handleConnect() {
+    if (!clientIdInput.trim()) { err('Please enter your Google Client ID first.'); return }
+    setStatus('connecting')
+    setErrorMsg('')
+    try {
+      const token = await signIn(clientIdInput.trim())
+      setGoogleConfig({ clientId: clientIdInput.trim() })
+      // Immediately set up Drive folder + sheet on first connect
+      const { sheetId } = await ensureDriveAndSheet(token)
+      await syncAllData(token, sheetId, { feeds, sleep, diaper, growth, recordedMilestones, doctorVisits })
+      setGoogleConfig({ lastSync: new Date().toISOString() })
+      setStatus('success')
+      setTimeout(() => setStatus('idle'), 3000)
+    } catch (e) {
+      err((e as Error).message)
+    }
+  }
+
+  function handleDisconnect() {
+    signOut()
+    setGoogleConfig({ folderId: null, sheetId: null, lastSync: null })
+    setStatus('idle')
+    setErrorMsg('')
+  }
+
+  async function handleSyncNow() {
+    let token = getToken()
+    if (!token) {
+      // Token expired — re-authenticate silently with saved client ID
+      try {
+        token = await signIn(clientIdInput.trim() || googleClientId)
+      } catch (e) {
+        err("Session expired. Please reconnect your Google account.")
+        return
+      }
+    }
+    setStatus('syncing')
+    setErrorMsg('')
+    try {
+      const { sheetId } = await ensureDriveAndSheet(token)
+      await syncAllData(token, sheetId, { feeds, sleep, diaper, growth, recordedMilestones, doctorVisits })
+      setGoogleConfig({ lastSync: new Date().toISOString() })
+      setStatus('success')
+      setTimeout(() => setStatus('idle'), 3000)
+    } catch (e) {
+      err((e as Error).message)
+    }
+  }
+
+  async function handlePreviewImport() {
+    const token = getToken()
+    if (!token) { err('Please connect Google first, then try the import.'); return }
+    if (!importUrl.trim()) { err('Please enter a Google Sheets URL or ID.'); return }
+    if (!importDate) { err('Please choose the date for these activities.'); return }
+
+    setStatus('previewing')
+    setErrorMsg('')
+    try {
+      const spreadsheetId = extractSpreadsheetId(importUrl)
+      const preview = await importFromSpreadsheet(token, spreadsheetId, importDate)
+      setImportPreview(preview)
+      setStatus('idle')
+    } catch (e) {
+      err((e as Error).message)
+    }
+  }
+
+  function handleConfirmImport() {
+    if (!importPreview) return
+    importPreview.feeds.forEach((f) => addFeed({ ...f, id: uid() }))
+    importPreview.sleep.forEach((s) => addSleep({ ...s, id: uid() }))
+    importPreview.diaper.forEach((d) => addDiaper({ ...d, id: uid() }))
+
+    const total = importPreview.feeds.length + importPreview.sleep.length + importPreview.diaper.length
+    setImportSuccess(`Imported ${total} entries successfully.`)
+    setImportPreview(null)
+    setImportUrl('')
+    setShowImport(false)
+    setTimeout(() => setImportSuccess(''), 4000)
+  }
+
+  const fmtLastSync = googleLastSync
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(googleLastSync))
+    : null
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-4">
+        {connected
+          ? <Cloud size={18} className="text-sage-500 shrink-0" />
+          : <CloudOff size={18} className="text-stone-400 shrink-0" />}
+        <div>
+          <h2 className="font-display text-base text-stone-700">Google Sync</h2>
+          <p className="text-xs text-stone-400">Optional — keeps a copy in your Google Drive</p>
+        </div>
+        {connected && (
+          <span className="ml-auto bg-sage-100 text-sage-700 text-xs font-medium px-2 py-0.5 rounded-full">
+            Connected
+          </span>
+        )}
+      </div>
+
+      {!connected ? (
+        <div className="space-y-4">
+          {/* Explainer */}
+          <div className="bg-cream-100 rounded-2xl p-4 space-y-2 text-sm text-stone-600">
+            <p>When connected, the app will mirror all data to your Google Drive:</p>
+            <ul className="list-disc list-inside space-y-1 text-xs text-stone-500">
+              <li>All text entries → a Google Sheet (feeds, sleep, nappies, growth, milestones)</li>
+              <li>Photos & videos → a dedicated Media folder</li>
+              <li>Your device stays the source of truth — sync is a backup, not a requirement</li>
+            </ul>
+          </div>
+
+          {/* Client ID field */}
+          <div className="space-y-1">
+            <Input
+              label="Google OAuth Client ID"
+              value={clientIdInput}
+              onChange={(e) => setClientIdInput(e.target.value)}
+              placeholder="xxxx.apps.googleusercontent.com"
+            />
+            <p className="text-xs text-stone-400 leading-relaxed">
+              You need a free Google Cloud project with Drive + Sheets APIs enabled.{' '}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-periwinkle-500 underline"
+              >
+                Get a Client ID →
+              </a>{' '}
+              Set origin to <code className="bg-stone-100 px-1 rounded text-xs">http://localhost:5173</code>.
+            </p>
+          </div>
+
+          <Button
+            fullWidth
+            onClick={handleConnect}
+            disabled={status === 'connecting'}
+          >
+            {status === 'connecting' ? 'Opening Google sign-in…' : 'Connect Google account'}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Sync status */}
+          <div className="bg-sage-50 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-sage-700 font-medium">Drive folder active</p>
+              {fmtLastSync && (
+                <p className="text-xs text-sage-500">Last synced: {fmtLastSync}</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSyncNow}
+              disabled={status === 'syncing'}
+            >
+              <RefreshCw size={13} className={status === 'syncing' ? 'animate-spin' : ''} />
+              {status === 'syncing' ? 'Syncing…' : 'Sync now'}
+            </Button>
+          </div>
+
+          {/* Import section */}
+          <div>
+            <button
+              className="w-full flex items-center gap-2 text-sm text-stone-600 hover:text-stone-800 transition-colors"
+              onClick={() => setShowImport((v) => !v)}
+            >
+              <Download size={14} />
+              <span className="font-medium">Import from existing Google Sheet</span>
+              <span className="ml-auto text-stone-300">{showImport ? '▲' : '▼'}</span>
+            </button>
+
+            {showImport && (
+              <div className="mt-3 space-y-3 border-t border-stone-100 pt-3">
+                <p className="text-xs text-stone-500">
+                  Paste a link to a sheet with columns: Activity · Start Time · End Time · Duration · Notes
+                </p>
+                <Input
+                  label="Google Sheets URL or ID"
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/…"
+                />
+                <Input
+                  label="Date these activities belong to"
+                  type="date"
+                  value={importDate}
+                  onChange={(e) => setImportDate(e.target.value)}
+                />
+                {!importPreview ? (
+                  <Button
+                    fullWidth
+                    variant="secondary"
+                    onClick={handlePreviewImport}
+                    disabled={status === 'previewing'}
+                  >
+                    {status === 'previewing' ? 'Reading sheet…' : 'Preview import'}
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-periwinkle-50 rounded-xl p-3 text-sm">
+                      <p className="font-medium text-periwinkle-700 mb-1">Ready to import</p>
+                      <ul className="text-xs text-periwinkle-600 space-y-0.5">
+                        <li>🍼 {importPreview.feeds.length} feeding{importPreview.feeds.length !== 1 ? 's' : ''}</li>
+                        <li>🌙 {importPreview.sleep.length} sleep session{importPreview.sleep.length !== 1 ? 's' : ''}</li>
+                        <li>🧷 {importPreview.diaper.length} nappy change{importPreview.diaper.length !== 1 ? 's' : ''}</li>
+                        {importPreview.skipped > 0 && (
+                          <li className="text-stone-400">↳ {importPreview.skipped} other rows skipped (Play, custom activities)</li>
+                        )}
+                      </ul>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setImportPreview(null)}>Cancel</Button>
+                      <Button fullWidth onClick={handleConfirmImport}>Confirm import</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {importSuccess && (
+            <div className="flex items-center gap-2 text-sm text-sage-700 bg-sage-50 rounded-xl p-3">
+              <CheckCircle2 size={15} />
+              {importSuccess}
+            </div>
+          )}
+
+          <Button variant="ghost" size="sm" onClick={handleDisconnect} className="text-stone-400">
+            Disconnect Google account
+          </Button>
+        </div>
+      )}
+
+      {/* Error banner */}
+      {status === 'error' && errorMsg && (
+        <div className="mt-3 flex items-start gap-2 bg-blush-50 border border-blush-200 rounded-xl p-3 text-sm text-blush-700">
+          <AlertCircle size={15} className="shrink-0 mt-0.5" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {status === 'success' && (
+        <div className="mt-3 flex items-center gap-2 bg-sage-50 rounded-xl p-3 text-sm text-sage-700">
+          <CheckCircle2 size={15} />
+          Synced successfully.
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Main Settings page ────────────────────────────────────────────────────────
+
+export function Settings() {
+  const { baby, setBaby } = useAppStore()
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ ...baby })
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => { setForm({ ...baby }) }, [baby])
+
+  function set(key: string, value: string | boolean | number | null) {
+    setForm((prev) => ({
+      ...prev,
+      [key]: typeof value === 'string' ? normaliseQuotes(value) : value,
+    }))
+  }
+
+  function save() {
+    setBaby(form)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    if (!baby.onboardingComplete) {
+      setBaby({ ...form, onboardingComplete: true })
+      navigate('/')
+    }
+  }
+
+  const isOnboarding = !baby.onboardingComplete
+
+  return (
+    <div className={isOnboarding ? 'min-h-screen bg-cream-100 flex items-center justify-center p-5' : ''}>
+      {isOnboarding ? (
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <span className="font-display italic text-stone-800 text-3xl block leading-tight">Parents'</span>
+            <span className="font-display text-stone-800 text-3xl block leading-tight">little helper</span>
+            <div className="w-8 h-0.5 bg-blush-300 mx-auto mt-3 rounded-full mb-4" />
+            <p className="text-stone-500 text-sm">Let's get to know your little one.</p>
+          </div>
+          <ProfileSection form={form} set={set} onSave={save} isOnboarding />
+        </div>
+      ) : (
+        <PageShell title="Settings" subtitle="Profile, preferences & sync">
+          <div className="space-y-4">
+            <ProfileSection form={form} set={set} onSave={save} saved={saved} />
+            <GoogleSection />
+          </div>
+        </PageShell>
       )}
     </div>
   )
