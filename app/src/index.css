@@ -1,67 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=Outfit:wght@400;500;700;800;900&display=swap');
+
 @import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
+/* ── Keyframes for playful motion ─────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
 
 @theme {
-  --font-sans: 'DM Sans', system-ui, sans-serif;
-  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-sans: 'Nunito', system-ui, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
 
-  /* Warm neutral palette */
-  --color-cream-50: #fefcf8;
-  --color-cream-100: #fdf8f0;
-  --color-cream-200: #f9f0e1;
-  --color-cream-300: #f2e4cc;
+  /* ── Bare brand tokens (matches the landing page's single-word classes) ── */
+  --color-charcoal: #264653;
+  --color-teal: #2a9d8f;
+  --color-gold: #e9c46a;
+  --color-sand: #f4a261;
+  --color-sienna: #e76f51;
+  --color-cream: #fdfbf7;
 
-  --color-stone-50: #faf9f7;
-  --color-stone-100: #f5f3ef;
-  --color-stone-200: #e8e4dc;
-  --color-stone-300: #d4cec3;
-  --color-stone-400: #b5ada0;
-  --color-stone-500: #8c8277;
-  --color-stone-600: #6b6259;
-  --color-stone-700: #4a4540;
-  --color-stone-800: #2e2b27;
-  --color-stone-900: #1a1815;
+  /* Warm cream background scale */
+  --color-cream-50: #fdfbf7;
+  --color-cream-100: #f9f6f0;
+  --color-cream-200: #f3ebda;
+  --color-cream-300: #ecdfc4;
 
-  /* Blush accent */
-  --color-blush-50: #fef6f4;
-  --color-blush-100: #fde9e4;
-  --color-blush-200: #f9cdc5;
-  --color-blush-300: #f3a89a;
-  --color-blush-400: #ea7e6c;
-  --color-blush-500: #de5a46;
-  --color-blush-600: #c9422e;
+  /* Stone → charcoal-tinted neutral scale (text, borders, dark surfaces) */
+  --color-stone-50: #eef3f4;
+  --color-stone-100: #d3e0e3;
+  --color-stone-200: #a7c1c7;
+  --color-stone-300: #7aa3ac;
+  --color-stone-400: #4e8490;
+  --color-stone-500: #326b78;
+  --color-stone-600: #264653;
+  --color-stone-700: #1c3540;
+  --color-stone-800: #13242c;
+  --color-stone-900: #0a1418;
 
-  /* Sage accent */
-  --color-sage-50: #f4f7f4;
-  --color-sage-100: #e5ede5;
-  --color-sage-200: #c8d9c8;
-  --color-sage-300: #9dbb9d;
-  --color-sage-400: #6e976e;
-  --color-sage-500: #4d774d;
-  --color-sage-600: #3a5c3a;
+  /* Blush → sienna-tinted warm accent */
+  --color-blush-50: #fdefe9;
+  --color-blush-100: #fbdccc;
+  --color-blush-200: #f7b899;
+  --color-blush-300: #f39566;
+  --color-blush-400: #ef7f47;
+  --color-blush-500: #e76f51;
+  --color-blush-600: #c2542f;
 
-  /* Periwinkle accent */
-  --color-periwinkle-50: #f3f4fb;
-  --color-periwinkle-100: #e4e7f5;
-  --color-periwinkle-200: #c7cee9;
-  --color-periwinkle-300: #9faad8;
-  --color-periwinkle-400: #7482c3;
-  --color-periwinkle-500: #5461ae;
-  --color-periwinkle-600: #3f4c97;
+  /* Sage → teal-tinted cool accent */
+  --color-sage-50: #e9f6f4;
+  --color-sage-100: #c9eae6;
+  --color-sage-200: #93d5cd;
+  --color-sage-300: #5dc0b4;
+  --color-sage-400: #37ab9d;
+  --color-sage-500: #2a9d8f;
+  --color-sage-600: #227e73;
+  --color-sage-700: #1a5f57;
 
-  /* Marigold accent */
-  --color-marigold-50: #fef9ec;
-  --color-marigold-100: #fef0cc;
-  --color-marigold-200: #fde08a;
-  --color-marigold-300: #fbc84a;
-  --color-marigold-400: #f9b020;
-  --color-marigold-500: #e8940a;
+  /* Periwinkle → aliased to the same teal hue for a unified accent */
+  --color-periwinkle-50: #e9f6f4;
+  --color-periwinkle-100: #c9eae6;
+  --color-periwinkle-200: #93d5cd;
+  --color-periwinkle-300: #5dc0b4;
+  --color-periwinkle-400: #37ab9d;
+  --color-periwinkle-500: #2a9d8f;
+  --color-periwinkle-600: #227e73;
+  --color-periwinkle-700: #1a5f57;
 
-  --radius-card: 1.25rem;
+  /* Marigold → gold-tinted highlight */
+  --color-marigold-50: #fdf7e7;
+  --color-marigold-100: #fbedc4;
+  --color-marigold-200: #f7db8a;
+  --color-marigold-300: #f3c94f;
+  --color-marigold-400: #e9c46a;
+  --color-marigold-500: #d9a83e;
+  --color-marigold-600: #b8862a;
+
+  /* Sand — new warm accent for feed/food related UI */
+  --color-sand-300: #f7bb8c;
+  --color-sand-400: #f4a261;
+  --color-sand-500: #ef8f45;
+
+  --radius-card: 1.75rem;
   --radius-pill: 9999px;
-  --shadow-card: 0 2px 12px 0 rgba(44,38,30,0.07), 0 1px 3px 0 rgba(44,38,30,0.05);
-  --shadow-card-hover: 0 8px 28px 0 rgba(44,38,30,0.11), 0 2px 6px 0 rgba(44,38,30,0.07);
+
+  /* Neobrutalist hard shadows */
+  --shadow-brutal: 8px 8px 0px 0px #264653;
+  --shadow-brutal-lg: 12px 12px 0px 0px #264653;
+  --shadow-brutal-sm: 4px 4px 0px 0px #264653;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-delayed: float 6s ease-in-out 3s infinite;
+  --animate-wiggle: wiggle 3s ease-in-out infinite;
 }
 
 * {
@@ -76,10 +110,34 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--color-stone-800);
+  background-color: var(--color-cream-100);
+  background-image: radial-gradient(var(--color-stone-300) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0;
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   min-height: 100vh;
+}
+
+::selection {
+  background-color: var(--color-marigold-400);
+  color: var(--color-stone-800);
+}
+
+/* Playful thick scrollbar to match the brutal border language */
+::-webkit-scrollbar {
+  width: 14px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-cream-100);
+  border-left: 3px solid var(--color-stone-800);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-sage-500);
+  border-left: 3px solid var(--color-stone-800);
+  border-bottom: 3px solid var(--color-stone-800);
 }

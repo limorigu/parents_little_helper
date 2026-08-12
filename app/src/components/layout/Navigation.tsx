@@ -18,22 +18,26 @@ export function Navigation() {
   return (
     <>
       {/* Sidebar – desktop */}
-      <nav className="hidden md:flex flex-col w-60 shrink-0 bg-white border-r border-stone-100 min-h-screen py-8 px-4 fixed left-0 top-0 bottom-0 z-40">
-        <div className="px-3 mb-8">
-          <span className="font-display italic text-stone-800 text-xl leading-tight block">Parents'</span>
-          <span className="font-display text-stone-800 text-xl leading-tight block">little helper</span>
-          <div className="w-6 h-0.5 bg-blush-300 mt-2 rounded-full" />
+      <nav className="hidden md:flex flex-col w-60 shrink-0 bg-cream-50 border-r-4 border-stone-800 min-h-screen py-8 px-4 fixed left-0 top-0 bottom-0 z-40">
+        <div className="flex items-center gap-3 px-1 mb-8 group">
+          <div className="w-11 h-11 shrink-0 flex items-center justify-center text-xl bg-marigold-400 border-4 border-stone-800 rounded-2xl -rotate-6 shadow-brutal-sm group-hover:rotate-6 group-hover:shadow-brutal transition-all duration-200">
+            🧸
+          </div>
+          <div>
+            <span className="font-display font-black text-stone-800 text-lg leading-tight block">Parents'</span>
+            <span className="font-display font-black text-stone-800 text-lg leading-tight block">Little Helper</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           {NAV.map(({ to, label, icon: Icon }) => {
             const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
             return (
               <NavLink
                 key={to}
                 to={to}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active ? 'bg-cream-200 text-stone-800' : 'text-stone-500 hover:bg-stone-50 hover:text-stone-700'}`}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${active ? 'bg-sage-100 border-stone-800 text-stone-800 shadow-brutal-sm' : 'border-transparent text-stone-500 hover:border-stone-800 hover:-translate-y-0.5 hover:text-stone-700'}`}
               >
-                <Icon size={17} strokeWidth={active ? 2 : 1.5} />
+                <Icon size={17} strokeWidth={active ? 2.5 : 1.5} />
                 {label}
               </NavLink>
             )
@@ -42,17 +46,17 @@ export function Navigation() {
       </nav>
 
       {/* Bottom bar – mobile */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-stone-100 z-40 flex items-center justify-around px-2 py-2 safe-area-bottom">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-cream-50 border-t-4 border-stone-800 z-40 flex items-center justify-around px-2 py-2 safe-area-bottom">
         {NAV.slice(0, 5).map(({ to, label, icon: Icon }) => {
           const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
           return (
             <NavLink
               key={to}
               to={to}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all ${active ? 'text-stone-800' : 'text-stone-400'}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl border-2 transition-all ${active ? 'text-stone-800 bg-sage-100 border-stone-800' : 'text-stone-400 border-transparent'}`}
             >
-              <Icon size={20} strokeWidth={active ? 2 : 1.5} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+              <span className="text-[10px] font-bold">{label}</span>
             </NavLink>
           )
         })}

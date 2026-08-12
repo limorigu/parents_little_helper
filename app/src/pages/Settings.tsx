@@ -473,10 +473,12 @@ export function Settings() {
       {isOnboarding ? (
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <span className="font-display italic text-stone-800 text-3xl block leading-tight">Parents'</span>
-            <span className="font-display text-stone-800 text-3xl block leading-tight">little helper</span>
-            <div className="w-8 h-0.5 bg-blush-300 mx-auto mt-3 rounded-full mb-4" />
-            <p className="text-stone-500 text-sm">Let's get to know your little one.</p>
+            <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center text-3xl bg-marigold-400 border-4 border-stone-800 rounded-2xl shadow-brutal-sm animate-float">
+              🧸
+            </div>
+            <span className="font-display font-black text-stone-800 text-3xl block leading-tight">Parents'</span>
+            <span className="font-display font-black text-stone-800 text-3xl block leading-tight">Little Helper</span>
+            <p className="text-stone-500 font-bold text-sm mt-3">Let's get to know your little one.</p>
           </div>
           <ProfileSection form={form} set={set} onSave={save} isOnboarding />
         </div>

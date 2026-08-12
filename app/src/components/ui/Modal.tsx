@@ -22,10 +22,10 @@ export function Modal({ open, onClose, title, children, maxWidth = 'max-w-lg' }:
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" aria-modal="true">
       <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full ${maxWidth} bg-white rounded-[1.5rem] shadow-2xl max-h-[90vh] flex flex-col overflow-hidden`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-          <h2 className="font-display text-lg text-stone-800">{title}</h2>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 transition-colors rounded-full p-1 hover:bg-stone-100">
+      <div className={`relative w-full ${maxWidth} bg-cream-50 border-4 border-stone-800 rounded-[1.75rem] shadow-brutal-lg max-h-[90vh] flex flex-col overflow-hidden`}>
+        <div className="flex items-center justify-between px-6 py-4 border-b-4 border-stone-800">
+          <h2 className="font-display font-black text-lg text-stone-800">{title}</h2>
+          <button onClick={onClose} className="text-stone-800 rounded-full p-1 border-2 border-stone-800 bg-cream-100 hover:bg-marigold-100 active:translate-y-0.5 transition-all">
             <X size={18} />
           </button>
         </div>

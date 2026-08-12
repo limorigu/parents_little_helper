@@ -8,13 +8,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ variant = 'primary', size = 'md', children, fullWidth, className = '', ...props }: ButtonProps) {
-  const base = 'inline-flex items-center justify-center gap-2 font-medium rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+  const base = 'inline-flex items-center justify-center gap-2 font-display font-bold rounded-2xl transition-all duration-150 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed'
 
   const variants = {
-    primary: 'bg-stone-800 text-cream-50 hover:bg-stone-700 focus:ring-stone-400 active:scale-95',
-    secondary: 'bg-cream-200 text-stone-700 hover:bg-cream-300 focus:ring-stone-300 active:scale-95',
-    ghost: 'bg-transparent text-stone-600 hover:bg-stone-100 focus:ring-stone-200 active:scale-95',
-    danger: 'bg-blush-500 text-white hover:bg-blush-600 focus:ring-blush-300 active:scale-95',
+    primary: 'bg-sage-500 text-cream-50 border-4 border-stone-800 shadow-brutal hover:shadow-brutal-lg hover:-translate-y-1 active:translate-y-1 active:shadow-brutal-sm',
+    secondary: 'bg-cream-50 text-stone-800 border-4 border-stone-800 shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 active:translate-y-1 active:shadow-none',
+    ghost: 'bg-transparent text-stone-600 hover:bg-stone-100 hover:-translate-y-0.5 active:translate-y-0',
+    danger: 'bg-blush-500 text-cream-50 border-4 border-stone-800 shadow-brutal hover:shadow-brutal-lg hover:-translate-y-1 active:translate-y-1 active:shadow-brutal-sm',
   }
 
   const sizes = {

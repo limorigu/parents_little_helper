@@ -57,7 +57,7 @@ export function Dashboard() {
         {specialToday && (
           <Link to="/calendar">
             <Card className="bg-gradient-to-br from-blush-50 to-cream-100 border-blush-200 flex items-center gap-4 hover:shadow-md transition-shadow">
-              <span className="text-3xl">🎂</span>
+              <span className="text-3xl inline-block animate-wiggle">🎂</span>
               <div className="flex-1 min-w-0">
                 <p className="font-display text-base text-stone-800">
                   {baby.name ? `${baby.name} is ` : ''}{specialToday.title}

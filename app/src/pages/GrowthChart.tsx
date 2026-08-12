@@ -140,20 +140,20 @@ export function GrowthChart() {
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData} margin={{ left: -10, right: 16, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0ede9" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8c8277' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#8c8277' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#ecdfc4" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#4e8490' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#4e8490' }} />
                 <Tooltip
-                  contentStyle={{ borderRadius: 12, border: '1px solid #e8e4dc', fontSize: 12 }}
+                  contentStyle={{ borderRadius: 8, border: '2px solid #264653', fontSize: 12 }}
                   formatter={(v) => `${v} ${METRIC_LABELS[metric].unit}`}
                 />
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="#6e976e"
-                  strokeWidth={2.5}
-                  dot={{ fill: '#6e976e', r: 4 }}
-                  activeDot={{ r: 6 }}
+                  stroke="#2a9d8f"
+                  strokeWidth={3}
+                  dot={{ fill: '#2a9d8f', stroke: '#264653', strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, stroke: '#264653', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
