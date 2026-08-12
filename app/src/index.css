@@ -61,15 +61,15 @@
   --color-sage-600: #227e73;
   --color-sage-700: #1a5f57;
 
-  /* Periwinkle → aliased to the same teal hue for a unified accent */
-  --color-periwinkle-50: #e9f6f4;
-  --color-periwinkle-100: #c9eae6;
-  --color-periwinkle-200: #93d5cd;
-  --color-periwinkle-300: #5dc0b4;
-  --color-periwinkle-400: #37ab9d;
-  --color-periwinkle-500: #2a9d8f;
-  --color-periwinkle-600: #227e73;
-  --color-periwinkle-700: #1a5f57;
+  /* Periwinkle → blue-violet cool accent, distinct from sage's teal */
+  --color-periwinkle-50: #eef2ff;
+  --color-periwinkle-100: #e0e7ff;
+  --color-periwinkle-200: #c7d2fe;
+  --color-periwinkle-300: #a5b4fc;
+  --color-periwinkle-400: #818cf8;
+  --color-periwinkle-500: #6366f1;
+  --color-periwinkle-600: #4f46e5;
+  --color-periwinkle-700: #4338ca;
 
   /* Marigold → gold-tinted highlight */
   --color-marigold-50: #fdf7e7;
