@@ -1,5 +1,7 @@
 # Parents' Little Helper
 
+![Parents' Little Helper](app/assets/parents_helper_github_og.png)
+
 A sophisticated, warm companion app for parents on parental leave — tracking milestones, daily plans, feeding, sleep, growth, and everything in between.
 
 ---
