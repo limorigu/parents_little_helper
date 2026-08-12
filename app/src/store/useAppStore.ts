@@ -158,6 +158,7 @@ interface AppState {
 
   addGrowth: (entry: GrowthEntry) => void
   updateGrowth: (id: string, updates: Partial<GrowthEntry>) => void
+  deleteGrowth: (id: string) => void
 
   setPlan: (plan: DailyPlan) => void
   updatePlanTiles: (date: string, tiles: ActivityTile[]) => void
@@ -265,6 +266,8 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           growth: s.growth.map((g) => (g.id === id ? { ...g, ...updates } : g)),
         })),
+      deleteGrowth: (id) =>
+        set((s) => ({ growth: s.growth.filter((g) => g.id !== id) })),
 
       setPlan: (plan) =>
         set((s) => {

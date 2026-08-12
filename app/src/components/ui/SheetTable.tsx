@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { ChevronDown, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 
 export interface SheetColumn {
   key: string
@@ -15,6 +15,7 @@ export interface SheetRow {
 interface SheetTableProps {
   columns: SheetColumn[]
   rows: SheetRow[]
+  onEditRow?: (id: string) => void
   onDeleteRow?: (id: string) => void
 }
 
@@ -23,7 +24,8 @@ interface SheetTableProps {
  * bar, thick brutal border, alternating row shading. Used by the Tracker so
  * logged activities look at-a-glance like the spreadsheet they're mirrored to.
  */
-export function SheetTable({ columns, rows, onDeleteRow }: SheetTableProps) {
+export function SheetTable({ columns, rows, onEditRow, onDeleteRow }: SheetTableProps) {
+  const hasActions = Boolean(onEditRow || onDeleteRow)
   return (
     <div className="border-4 border-stone-800 rounded-2xl shadow-brutal overflow-hidden overflow-x-auto">
       <table className="w-full text-sm border-collapse min-w-[560px]">
@@ -37,7 +39,7 @@ export function SheetTable({ columns, rows, onDeleteRow }: SheetTableProps) {
                 {col.label}
               </th>
             ))}
-            {onDeleteRow && <th className="w-10 bg-stone-600" />}
+            {hasActions && <th className="w-16 bg-stone-600" />}
           </tr>
         </thead>
         <tbody>
@@ -48,15 +50,28 @@ export function SheetTable({ columns, rows, onDeleteRow }: SheetTableProps) {
                   {row.cells[col.key]}
                 </td>
               ))}
-              {onDeleteRow && (
-                <td className="px-2 border-t-2 border-stone-200 text-center">
-                  <button
-                    onClick={() => onDeleteRow(row.id)}
-                    className="text-stone-300 hover:text-blush-500 transition-colors"
-                    aria-label="Delete row"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+              {hasActions && (
+                <td className="px-2 border-t-2 border-stone-200 text-center whitespace-nowrap">
+                  <div className="flex items-center justify-center gap-2">
+                    {onEditRow && (
+                      <button
+                        onClick={() => onEditRow(row.id)}
+                        className="text-stone-300 hover:text-periwinkle-500 transition-colors"
+                        aria-label="Edit row"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                    {onDeleteRow && (
+                      <button
+                        onClick={() => onDeleteRow(row.id)}
+                        className="text-stone-300 hover:text-blush-500 transition-colors"
+                        aria-label="Delete row"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </td>
               )}
             </tr>

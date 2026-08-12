@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
@@ -40,28 +40,49 @@ const DIAPER_TYPES: Array<{ value: DiaperEntry['type']; label: string; icon: str
 
 // ── Feed modal ───────────────────────────────────────────────────────────────
 
-function FeedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addFeed } = useAppStore()
+function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () => void; editEntry?: FeedEntry | null }) {
+  const { addFeed, updateFeed } = useAppStore()
   const [type, setType] = useState<FeedEntry['type']>('breast-left')
   const [duration, setDuration] = useState('')
   const [amount, setAmount] = useState('')
   const [notes, setNotes] = useState('')
   const [time, setTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
 
+  useEffect(() => {
+    if (!open) return
+    if (editEntry) {
+      setType(editEntry.type)
+      setDuration(editEntry.durationMinutes ? String(editEntry.durationMinutes) : '')
+      setAmount(editEntry.amountMl ? String(editEntry.amountMl) : '')
+      setNotes(editEntry.notes)
+      setTime(editEntry.date)
+    } else {
+      setType('breast-left')
+      setDuration('')
+      setAmount('')
+      setNotes('')
+      setTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+    }
+  }, [open, editEntry])
+
   function save() {
-    addFeed({
-      id: uid(),
+    const fields = {
       date: time,
       type,
       durationMinutes: duration ? Number(duration) : null,
       amountMl: amount ? Number(amount) : null,
       notes,
-    })
+    }
+    if (editEntry) {
+      updateFeed(editEntry.id, fields)
+    } else {
+      addFeed({ id: uid(), ...fields })
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Log a feed">
+    <Modal open={open} onClose={onClose} title={editEntry ? 'Edit feed' : 'Log a feed'}>
       <div className="space-y-4">
         <div>
           <p className="text-sm font-medium text-stone-600 mb-2">Type</p>
@@ -84,7 +105,7 @@ function FeedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           <Input label="Amount (ml)" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 90" />
         )}
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any observations…" />
-        <Button fullWidth onClick={save}>Save feed</Button>
+        <Button fullWidth onClick={save}>{editEntry ? 'Save changes' : 'Save feed'}</Button>
       </div>
     </Modal>
   )
@@ -92,7 +113,17 @@ function FeedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 // ── Sleep modal ──────────────────────────────────────────────────────────────
 
-function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => void; active: SleepEntry | null }) {
+function SleepModal({
+  open,
+  onClose,
+  active,
+  editEntry,
+}: {
+  open: boolean
+  onClose: () => void
+  active: SleepEntry | null
+  editEntry?: SleepEntry | null
+}) {
   const { addSleep, updateSleep } = useAppStore()
   const [type, setType] = useState<'night' | 'nap'>('nap')
   const [start, setStart] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
@@ -100,8 +131,29 @@ function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => v
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
 
+  useEffect(() => {
+    if (!open) return
+    if (editEntry) {
+      setType(editEntry.type)
+      setStart(editEntry.startTime)
+      setEnd(editEntry.endTime || '')
+      setLocation(editEntry.location)
+      setNotes(editEntry.notes)
+    } else if (active) {
+      setEnd('')
+    } else {
+      setType('nap')
+      setStart(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+      setEnd('')
+      setLocation('')
+      setNotes('')
+    }
+  }, [open, editEntry, active])
+
   function save() {
-    if (active) {
+    if (editEntry) {
+      updateSleep(editEntry.id, { startTime: start, endTime: end || null, type, location, notes })
+    } else if (active) {
       updateSleep(active.id, { endTime: end || null })
     } else {
       addSleep({ id: uid(), startTime: start, endTime: end || null, type, location, notes })
@@ -109,10 +161,12 @@ function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => v
     onClose()
   }
 
+  const showFullForm = !active || Boolean(editEntry)
+
   return (
-    <Modal open={open} onClose={onClose} title={active ? 'End sleep session' : 'Log sleep'}>
+    <Modal open={open} onClose={onClose} title={editEntry ? 'Edit sleep' : active ? 'End sleep session' : 'Log sleep'}>
       <div className="space-y-4">
-        {!active && (
+        {showFullForm && (
           <>
             <div className="flex gap-2">
               {(['night', 'nap'] as const).map((t) => (
@@ -130,15 +184,15 @@ function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => v
           </>
         )}
         <Input
-          label={active ? 'End time' : 'End time (optional — leave blank if still sleeping)'}
+          label={active && !editEntry ? 'End time' : 'End time (optional — leave blank if still sleeping)'}
           type="datetime-local"
           value={end}
           onChange={(e) => setEnd(e.target.value)}
         />
-        {!active && (
+        {showFullForm && (
           <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any observations…" />
         )}
-        <Button fullWidth onClick={save}>{active ? 'End session' : 'Save sleep'}</Button>
+        <Button fullWidth onClick={save}>{editEntry ? 'Save changes' : active ? 'End session' : 'Save sleep'}</Button>
       </div>
     </Modal>
   )
@@ -146,20 +200,36 @@ function SleepModal({ open, onClose, active }: { open: boolean; onClose: () => v
 
 // ── Diaper modal ─────────────────────────────────────────────────────────────
 
-function DiaperModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addDiaper } = useAppStore()
+function DiaperModal({ open, onClose, editEntry }: { open: boolean; onClose: () => void; editEntry?: DiaperEntry | null }) {
+  const { addDiaper, updateDiaper } = useAppStore()
   const [dtype, setDtype] = useState<DiaperEntry['type']>('wet')
   const [time, setTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
   const [notes, setNotes] = useState('')
 
+  useEffect(() => {
+    if (!open) return
+    if (editEntry) {
+      setDtype(editEntry.type)
+      setTime(editEntry.startTime)
+      setNotes(editEntry.notes)
+    } else {
+      setDtype('wet')
+      setTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+      setNotes('')
+    }
+  }, [open, editEntry])
+
   function save() {
-    addDiaper({ id: uid(), startTime: time, endTime: null, type: dtype, notes })
-    setNotes('')
+    if (editEntry) {
+      updateDiaper(editEntry.id, { startTime: time, type: dtype, notes })
+    } else {
+      addDiaper({ id: uid(), startTime: time, endTime: null, type: dtype, notes })
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Log a nappy change">
+    <Modal open={open} onClose={onClose} title={editEntry ? 'Edit nappy change' : 'Log a nappy change'}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-2">
           {DIAPER_TYPES.map((dt) => (
@@ -174,7 +244,7 @@ function DiaperModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         </div>
         <Input label="Time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} />
         <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Colour, rash, anything notable…" />
-        <Button fullWidth onClick={save}>Save nappy change</Button>
+        <Button fullWidth onClick={save}>{editEntry ? 'Save changes' : 'Save nappy change'}</Button>
       </div>
     </Modal>
   )
@@ -206,6 +276,34 @@ export function Tracker() {
   const [sleepModal, setSleepModal] = useState(false)
   const [diaperModal, setDiaperModal] = useState(false)
   const [activeSleep, setActiveSleep] = useState<SleepEntry | null>(null)
+  const [editFeed, setEditFeed] = useState<FeedEntry | null>(null)
+  const [editSleepEntry, setEditSleepEntry] = useState<SleepEntry | null>(null)
+  const [editDiaperEntry, setEditDiaperEntry] = useState<DiaperEntry | null>(null)
+
+  function openEditFeed(id: string) {
+    const entry = feeds.find((f) => f.id === id)
+    if (entry) {
+      setEditFeed(entry)
+      setFeedModal(true)
+    }
+  }
+
+  function openEditSleep(id: string) {
+    const entry = sleep.find((s) => s.id === id)
+    if (entry) {
+      setActiveSleep(null)
+      setEditSleepEntry(entry)
+      setSleepModal(true)
+    }
+  }
+
+  function openEditDiaper(id: string) {
+    const entry = diaper.find((d) => d.id === id)
+    if (entry) {
+      setEditDiaperEntry(entry)
+      setDiaperModal(true)
+    }
+  }
 
   const todayStr = today()
   const recent = subDays(new Date(), 3)
@@ -262,7 +360,7 @@ export function Tracker() {
         {/* Feed tab */}
         {tab === 'feed' && (
           <div className="space-y-3">
-            <Button fullWidth onClick={() => setFeedModal(true)}>
+            <Button fullWidth onClick={() => { setEditFeed(null); setFeedModal(true) }}>
               <Plus size={15} /> Log a feed
             </Button>
             {recentFeeds.length === 0 ? (
@@ -270,6 +368,7 @@ export function Tracker() {
             ) : (
               <SheetTable
                 columns={SHEET_COLUMNS}
+                onEditRow={openEditFeed}
                 onDeleteRow={deleteFeed}
                 rows={recentFeeds.map<SheetRow>((f) => ({
                   id: f.id,
@@ -298,12 +397,12 @@ export function Tracker() {
                 <p className="text-xs text-periwinkle-500 mb-3">
                   Started {formatTime(activeSleepSession.startTime)}
                 </p>
-                <Button variant="secondary" size="sm" onClick={() => { setActiveSleep(activeSleepSession); setSleepModal(true) }}>
+                <Button variant="secondary" size="sm" onClick={() => { setEditSleepEntry(null); setActiveSleep(activeSleepSession); setSleepModal(true) }}>
                   End session
                 </Button>
               </Card>
             ) : (
-              <Button fullWidth onClick={() => { setActiveSleep(null); setSleepModal(true) }}>
+              <Button fullWidth onClick={() => { setEditSleepEntry(null); setActiveSleep(null); setSleepModal(true) }}>
                 <Plus size={15} /> Log sleep
               </Button>
             )}
@@ -312,6 +411,7 @@ export function Tracker() {
             ) : (
               <SheetTable
                 columns={SHEET_COLUMNS}
+                onEditRow={openEditSleep}
                 onDeleteRow={deleteSleep}
                 rows={recentSleep.map<SheetRow>((s) => {
                   const mins = s.endTime
@@ -337,7 +437,7 @@ export function Tracker() {
         {/* Diaper tab */}
         {tab === 'diaper' && (
           <div className="space-y-3">
-            <Button fullWidth onClick={() => setDiaperModal(true)}>
+            <Button fullWidth onClick={() => { setEditDiaperEntry(null); setDiaperModal(true) }}>
               <Plus size={15} /> Log nappy change
             </Button>
             {recentDiaper.length === 0 ? (
@@ -345,6 +445,7 @@ export function Tracker() {
             ) : (
               <SheetTable
                 columns={SHEET_COLUMNS}
+                onEditRow={openEditDiaper}
                 onDeleteRow={deleteDiaper}
                 rows={recentDiaper.map<SheetRow>((d) => ({
                   id: d.id,
@@ -363,9 +464,22 @@ export function Tracker() {
         )}
       </div>
 
-      <FeedModal open={feedModal} onClose={() => setFeedModal(false)} />
-      <SleepModal open={sleepModal} onClose={() => setSleepModal(false)} active={activeSleep} />
-      <DiaperModal open={diaperModal} onClose={() => setDiaperModal(false)} />
+      <FeedModal
+        open={feedModal}
+        onClose={() => { setFeedModal(false); setEditFeed(null) }}
+        editEntry={editFeed}
+      />
+      <SleepModal
+        open={sleepModal}
+        onClose={() => { setSleepModal(false); setActiveSleep(null); setEditSleepEntry(null) }}
+        active={activeSleep}
+        editEntry={editSleepEntry}
+      />
+      <DiaperModal
+        open={diaperModal}
+        onClose={() => { setDiaperModal(false); setEditDiaperEntry(null) }}
+        editEntry={editDiaperEntry}
+      />
     </PageShell>
   )
 }
