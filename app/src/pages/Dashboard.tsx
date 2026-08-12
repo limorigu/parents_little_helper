@@ -53,6 +53,19 @@ export function Dashboard() {
       subtitle={baby.name ? `${baby.name} is ${getBabyAgeLabel(baby.birthDate)}` : undefined}
     >
       <div className="space-y-5">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-3 py-2">
+          <img
+            src="/logo.png"
+            alt="Parents' Little Helper"
+            className="w-16 h-16 rounded-2xl border-4 border-stone-800 shadow-brutal-sm -rotate-3"
+          />
+          <div className="text-center">
+            <p className="font-display font-black text-xl text-stone-800 leading-none">Parents'</p>
+            <p className="font-display font-black text-xl text-stone-800 leading-none">Little Helper</p>
+          </div>
+        </div>
+
         {/* Special day banner */}
         {specialToday && (
           <Link to="/calendar">

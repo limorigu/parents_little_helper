@@ -10,6 +10,7 @@ import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SheetTable, SheetChip, type SheetColumn, type SheetRow } from '../components/ui/SheetTable'
 import { PageShell } from '../components/layout/PageShell'
+import { TrackerInsights } from '../components/tracker/TrackerInsights'
 import type { FeedEntry, SleepEntry, DiaperEntry, PlayEntry } from '../store/useAppStore'
 
 const SHEET_COLUMNS: SheetColumn[] = [
@@ -21,7 +22,7 @@ const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'notes', label: 'Notes' },
 ]
 
-type Tab = 'feed' | 'sleep' | 'diaper' | 'play'
+type Tab = 'feed' | 'sleep' | 'diaper' | 'play' | 'insights'
 
 const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string }> = [
   { value: 'breast-left', label: 'Left breast', icon: '🤱' },
@@ -414,30 +415,36 @@ export function Tracker() {
     >
       <div className="space-y-4">
         {/* Tab switcher */}
-        <div className="flex bg-stone-100 rounded-2xl p-1">
+        <div className="flex bg-stone-100 rounded-2xl p-1 overflow-x-auto">
           <button
             onClick={() => setTab('feed')}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'feed' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'feed' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
           >
             🍼 Feeding
           </button>
           <button
             onClick={() => setTab('sleep')}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'sleep' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'sleep' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
           >
             🌙 Sleep
           </button>
           <button
             onClick={() => setTab('diaper')}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'diaper' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'diaper' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
           >
             🧷 Nappy
           </button>
           <button
             onClick={() => setTab('play')}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === 'play' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'play' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
           >
             🧸 Play
+          </button>
+          <button
+            onClick={() => setTab('insights')}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'insights' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+          >
+            📊 Insights
           </button>
         </div>
 
@@ -580,6 +587,9 @@ export function Tracker() {
             )}
           </div>
         )}
+
+        {/* Insights tab */}
+        {tab === 'insights' && <TrackerInsights />}
       </div>
 
       <FeedModal
