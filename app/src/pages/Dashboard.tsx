@@ -9,15 +9,18 @@ import { Badge } from '../components/ui/Badge'
 import { PageShell } from '../components/layout/PageShell'
 import { QuickLog } from '../components/dashboard/QuickLog'
 
-function getTodaySpecialEvent(birthDate: string): { title: string } | null {
+// `id` matches the auto-generated CalendarEvent id (see Calendar.tsx's
+// getAutoEvents) so a celebration photo added from either the Dashboard
+// banner or the Calendar's "Celebrate" flow shows up in both places.
+function getTodaySpecialEvent(birthDate: string): { id: string; title: string } | null {
   if (!birthDate) return null
   const todayStr = format(new Date(), 'yyyy-MM-dd')
   const birth = parseISO(birthDate)
-  if (todayStr === birthDate) return { title: 'Birth day' }
-  if (format(addDays(birth, 100), 'yyyy-MM-dd') === todayStr) return { title: '100 days old! 🎉' }
+  if (todayStr === birthDate) return { id: 'birth', title: 'Birth day' }
+  if (format(addDays(birth, 100), 'yyyy-MM-dd') === todayStr) return { id: 'day100', title: '100 days old! 🎉' }
   for (let m = 1; m <= 12; m++) {
     if (format(addMonths(birth, m), 'yyyy-MM-dd') === todayStr)
-      return { title: `${m} month${m > 1 ? 's' : ''} old!` }
+      return { id: `month-${m}`, title: `${m} month${m > 1 ? 's' : ''} old!` }
   }
   return null
 }
@@ -37,7 +40,7 @@ function getTip(weeks: number): string {
 }
 
 export function Dashboard() {
-  const { baby, recordedMilestones, feeds, sleep, plans } = useAppStore()
+  const { baby, recordedMilestones, feeds, sleep, plans, celebrations } = useAppStore()
   const weeks = getBabyAgeWeeks(baby.birthDate)
   const currentMilestones = getMilestonesForWeek(weeks)
   const todayDate = today()
@@ -47,6 +50,7 @@ export function Dashboard() {
   const todayFeeds = feeds.filter((f) => localDayKey(f.date) === todayDate)
   const lastSleep = sleep.find((s) => s.endTime)
   const specialToday = getTodaySpecialEvent(baby.birthDate)
+  const specialTodayPhoto = specialToday ? celebrations.find((c) => c.eventId === specialToday.id) : undefined
 
   return (
     <PageShell
@@ -67,16 +71,29 @@ export function Dashboard() {
         {/* Special day banner */}
         {specialToday && (
           <Link to="/calendar">
-            <Card className="bg-gradient-to-br from-blush-50 to-cream-100 border-blush-200 flex items-center gap-4 hover:shadow-md transition-shadow">
-              <span className="text-3xl inline-block animate-wiggle">🎂</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-display text-base text-stone-800">
-                  {baby.name ? `${baby.name} is ` : ''}{specialToday.title}
-                </p>
-                <p className="text-xs text-blush-500 mt-0.5 flex items-center gap-1">
-                  <Camera size={11} /> Tap to add a celebration photo
-                </p>
+            <Card className="bg-gradient-to-br from-blush-50 to-cream-100 border-blush-200 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <span className="text-3xl inline-block animate-wiggle">🎂</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-base text-stone-800">
+                    {baby.name ? `${baby.name} is ` : ''}{specialToday.title}
+                  </p>
+                  {!specialTodayPhoto && (
+                    <p className="text-xs text-blush-500 mt-0.5 flex items-center gap-1">
+                      <Camera size={11} /> Tap to add a celebration photo
+                    </p>
+                  )}
+                </div>
               </div>
+              {specialTodayPhoto && (
+                <div className="mt-3 rounded-xl overflow-hidden">
+                  {specialTodayPhoto.mediaType === 'video' ? (
+                    <video src={specialTodayPhoto.mediaUrl} controls className="w-full max-h-56 object-cover rounded-xl" />
+                  ) : (
+                    <img src={specialTodayPhoto.mediaUrl} alt="celebration" className="w-full max-h-56 object-cover rounded-xl" />
+                  )}
+                </div>
+              )}
             </Card>
           </Link>
         )}

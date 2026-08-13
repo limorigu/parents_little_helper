@@ -32,6 +32,7 @@ type Tab = 'feed' | 'sleep' | 'diaper' | 'play' | 'insights'
 const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string }> = [
   { value: 'breast-left', label: 'Left breast', icon: '🤱' },
   { value: 'breast-right', label: 'Right breast', icon: '🤱' },
+  { value: 'breast-both', label: 'Both breasts', icon: '🤱' },
   { value: 'bottle-formula', label: 'Formula', icon: '🍼' },
   { value: 'bottle-pumped', label: 'Pumped milk', icon: '🍼' },
   { value: 'solid', label: 'Solid food', icon: '🥣' },
@@ -54,29 +55,44 @@ function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
   const [amount, setAmount] = useState('')
   const [notes, setNotes] = useState('')
   const [time, setTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+  const [end, setEnd] = useState('')
+  const [endError, setEndError] = useState('')
 
   useEffect(() => {
     if (!open) return
+    setEndError('')
     if (editEntry) {
       setType(editEntry.type)
       setDuration(editEntry.durationMinutes ? String(editEntry.durationMinutes) : '')
       setAmount(editEntry.amountMl ? String(editEntry.amountMl) : '')
       setNotes(editEntry.notes)
       setTime(toDateTimeInput(editEntry.date))
+      setEnd(toDateTimeInput(editEntry.endTime))
     } else {
       setType('breast-left')
       setDuration('')
       setAmount('')
       setNotes('')
       setTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+      setEnd('')
     }
   }, [open, editEntry])
 
   function save() {
+    if (end && new Date(end).getTime() <= new Date(time).getTime()) {
+      setEndError("End time can't be before the start time")
+      return
+    }
+    setEndError('')
+    // If the user gave an explicit end time but no manual duration, derive the
+    // breastfeeding duration from the gap rather than leaving it blank.
+    const derivedDuration =
+      end && !duration ? Math.round((new Date(end).getTime() - new Date(time).getTime()) / 60_000) : null
     const fields = {
       date: time,
+      endTime: end || null,
       type,
-      durationMinutes: duration ? Number(duration) : null,
+      durationMinutes: duration ? Number(duration) : type.startsWith('breast') ? derivedDuration : null,
       amountMl: amount ? Number(amount) : null,
       notes,
     }
@@ -105,9 +121,16 @@ function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
             ))}
           </div>
         </div>
-        <Input label="Time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} />
+        <Input label="Start time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} />
+        <Input
+          label="End time (optional)"
+          type="datetime-local"
+          value={end}
+          onChange={(e) => { setEnd(e.target.value); setEndError('') }}
+          error={endError}
+        />
         {type.startsWith('breast') ? (
-          <Input label="Duration (minutes)" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 12" />
+          <Input label="Duration (minutes, optional)" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 12 — or just set an end time above" />
         ) : (
           <Input label="Amount (ml)" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 90" />
         )}
@@ -349,6 +372,7 @@ function PlayModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
 const FEED_LABELS: Record<string, string> = {
   'breast-left': '🤱 Left',
   'breast-right': '🤱 Right',
+  'breast-both': '🤱 Both',
   'bottle-formula': '🍼 Formula',
   'bottle-pumped': '🍼 Pumped',
   solid: '🥣 Solid',
@@ -505,7 +529,7 @@ export function Tracker() {
                     date: format(parseISO(f.date), 'd MMM'),
                     activity: <SheetChip label={FEED_LABELS[f.type]} color="sage" />,
                     start: formatTime(f.date),
-                    end: '—',
+                    end: f.endTime ? formatTime(f.endTime) : '—',
                     duration: f.durationMinutes ? `${f.durationMinutes} min` : f.amountMl ? `${f.amountMl}ml` : '—',
                     notes: f.notes || '—',
                   },

@@ -41,7 +41,8 @@ export interface RecordedMilestone {
 export interface FeedEntry {
   id: string
   date: string
-  type: 'breast-left' | 'breast-right' | 'bottle-formula' | 'bottle-pumped' | 'solid' | 'unspecified'
+  endTime: string | null // ISO datetime; non-null while a QuickLog feed session is in progress, or once a manual end time is logged
+  type: 'breast-left' | 'breast-right' | 'breast-both' | 'bottle-formula' | 'bottle-pumped' | 'solid' | 'unspecified'
   durationMinutes: number | null
   amountMl: number | null
   notes: string
@@ -135,6 +136,13 @@ interface AppState {
   darkMode: boolean
   recordedMilestones: RecordedMilestone[]
   feeds: FeedEntry[]
+  // Points at the feed entry a QuickLog "start feed" tap is currently timing.
+  // Feed entries themselves can legitimately have endTime === null just
+  // because nobody bothered filling in an end time (unlike sleep/play, which
+  // are ALWAYS logged via start/stop) — so "in progress" can't be derived
+  // from the feed list alone the way it can for sleep/play. This pointer is
+  // the source of truth for that instead.
+  activeFeedId: string | null
   sleep: SleepEntry[]
   diaper: DiaperEntry[]
   play: PlayEntry[]
@@ -165,6 +173,7 @@ interface AppState {
   addFeed: (entry: FeedEntry) => void
   updateFeed: (id: string, updates: Partial<FeedEntry>) => void
   deleteFeed: (id: string) => void
+  setActiveFeedId: (id: string | null) => void
 
   addSleep: (entry: SleepEntry) => void
   updateSleep: (id: string, updates: Partial<SleepEntry>) => void
@@ -232,6 +241,7 @@ export const useAppStore = create<AppState>()(
       darkMode: false,
       recordedMilestones: [],
       feeds: [],
+      activeFeedId: null,
       sleep: [],
       diaper: [],
       play: [],
@@ -268,7 +278,11 @@ export const useAppStore = create<AppState>()(
           feeds: s.feeds.map((f) => (f.id === id ? { ...f, ...updates } : f)),
         })),
       deleteFeed: (id) =>
-        set((s) => ({ feeds: s.feeds.filter((f) => f.id !== id) })),
+        set((s) => ({
+          feeds: s.feeds.filter((f) => f.id !== id),
+          activeFeedId: s.activeFeedId === id ? null : s.activeFeedId,
+        })),
+      setActiveFeedId: (id) => set({ activeFeedId: id }),
 
       addSleep: (entry) =>
         set((s) => ({ sleep: [entry, ...s.sleep] })),

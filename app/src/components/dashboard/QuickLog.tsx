@@ -15,7 +15,7 @@ interface TileDef {
 }
 
 const TILES: TileDef[] = [
-  { key: 'feed', label: 'Feed', icon: '🍼', bg: 'bg-sand-300', border: 'border-stone-800' },
+  { key: 'feed', label: 'Feed', activeLabel: 'Stop feed', icon: '🍼', bg: 'bg-sand-300', border: 'border-stone-800' },
   { key: 'sleep', label: 'Sleep', activeLabel: 'Wake up', icon: '🌙', bg: 'bg-periwinkle-100', border: 'border-stone-800' },
   { key: 'nappy', label: 'Nappy', icon: '🧷', bg: 'bg-blush-100', border: 'border-stone-800' },
   { key: 'play', label: 'Play', activeLabel: 'Stop play', icon: '🧸', bg: 'bg-sage-100', border: 'border-stone-800' },
@@ -30,12 +30,15 @@ const RECENT_LABEL: Record<TileDef['key'], string> = {
 
 /**
  * "Track it in a tap" — giant, no-typing quick-log buttons for the four
- * things new parents log dozens of times a day. Feed and Nappy log an
- * instant point-in-time entry; Sleep and Play are start/stop toggles that
+ * things new parents log dozens of times a day. Nappy logs an instant
+ * point-in-time entry; Feed, Sleep and Play are start/stop toggles that
  * track an in-progress session.
  */
 export function QuickLog() {
-  const { feeds, sleep, diaper, play, addFeed, addSleep, updateSleep, addDiaper, addPlay, updatePlay } = useAppStore()
+  const {
+    feeds, sleep, diaper, play, activeFeedId,
+    addFeed, updateFeed, setActiveFeedId, addSleep, updateSleep, addDiaper, addPlay, updatePlay,
+  } = useAppStore()
   const [justLogged, setJustLogged] = useState<TileDef['key'] | null>(null)
   const [, setTick] = useState(0)
 
@@ -55,6 +58,11 @@ export function QuickLog() {
   const activePlay = play
     .filter((p) => !p.endTime)
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0]
+  // Unlike sleep/play, a feed with no endTime doesn't necessarily mean "in
+  // progress" — plenty of manually-logged bottle/solid feeds just never get
+  // an end time filled in. So the in-progress feed is whichever one
+  // `activeFeedId` points at (and only while it's still actually open).
+  const activeFeed = activeFeedId ? feeds.find((f) => f.id === activeFeedId && !f.endTime) ?? null : null
 
   function flash(key: TileDef['key']) {
     setJustLogged(key)
@@ -67,10 +75,17 @@ export function QuickLog() {
     // render blank in the edit modal's datetime-local inputs.
     const now = nowLocalIso()
     if (key === 'feed') {
-      // Quick-tap doesn't know breast-vs-bottle etc — log it honestly as
-      // "unspecified" rather than guessing, and let the user refine it later
-      // via the edit modal. Avoids false precision in the logged history.
-      addFeed({ id: uid(), date: now, type: 'unspecified', durationMinutes: null, amountMl: null, notes: '' })
+      if (activeFeed) {
+        updateFeed(activeFeed.id, { endTime: now })
+        setActiveFeedId(null)
+      } else {
+        // Quick-tap doesn't know breast-vs-bottle etc — log it honestly as
+        // "unspecified" rather than guessing, and let the user refine it later
+        // via the edit modal. Avoids false precision in the logged history.
+        const id = uid()
+        addFeed({ id, date: now, endTime: null, type: 'unspecified', durationMinutes: null, amountMl: null, notes: '' })
+        setActiveFeedId(id)
+      }
       flash(key)
     } else if (key === 'nappy') {
       addDiaper({ id: uid(), startTime: now, endTime: now, type: 'unknown', notes: '' })
@@ -96,6 +111,7 @@ export function QuickLog() {
 
   function stateFor(key: TileDef['key']): ButtonState {
     if (justLogged === key) return 'justLogged'
+    if (key === 'feed' && activeFeed) return 'active'
     if (key === 'sleep' && activeNap) return 'active'
     if (key === 'play' && activePlay) return 'active'
     return 'idle'
@@ -105,7 +121,7 @@ export function QuickLog() {
   type Recent = { key: TileDef['key']; at: string; running?: boolean }
   const recents: Recent[] = (
     [
-      feeds[0] && { key: 'feed', at: feeds[0].date },
+      feeds[0] && { key: 'feed', at: feeds[0].endTime ?? feeds[0].date, running: activeFeed?.id === feeds[0].id },
       diaper[0] && { key: 'nappy', at: diaper[0].endTime ?? diaper[0].startTime },
       sleep[0] && { key: 'sleep', at: sleep[0].endTime ?? sleep[0].startTime, running: !sleep[0].endTime },
       play[0] && { key: 'play', at: play[0].endTime ?? play[0].startTime, running: !play[0].endTime },
@@ -125,7 +141,7 @@ export function QuickLog() {
           const state = stateFor(t.key)
           const showActive = state === 'active'
           const showLogged = state === 'justLogged'
-          const runningSince = t.key === 'sleep' ? activeNap?.startTime : t.key === 'play' ? activePlay?.startTime : undefined
+          const runningSince = t.key === 'feed' ? activeFeed?.date : t.key === 'sleep' ? activeNap?.startTime : t.key === 'play' ? activePlay?.startTime : undefined
           return (
             <button
               key={t.key}

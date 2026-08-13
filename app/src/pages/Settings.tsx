@@ -211,6 +211,13 @@ function GoogleSection() {
 
   // Derive connection from in-memory token (re-checks on each render)
   const connected = isSignedIn()
+  // The OAuth token lives in memory only (never localStorage, for security)
+  // so it's gone after every page reload even though the rest of the Google
+  // config — client ID, Drive folder, spreadsheet — is still sitting in the
+  // persisted store. Distinguish "never set this up" from "set up, just
+  // needs a fresh sign-in" so a reload doesn't look like the integration
+  // was never configured.
+  const wasConnected = Boolean(googleClientId && (googleFolderId || googleSheetId))
 
   function err(msg: string) { setStatus('error'); setErrorMsg(msg) }
 
@@ -239,8 +246,13 @@ function GoogleSection() {
     try {
       const token = await signIn(clientIdInput.trim())
       // Persist where in the user's Drive their data folder should live —
-      // chosen once, before the folder tree is created below.
-      const parentFolderId = parentFolderInput.trim() ? extractFolderId(parentFolderInput.trim()) : null
+      // chosen once, before the folder tree is created below. On a
+      // *reconnect* (the folder/sheet already exist), the input is left
+      // blank because there's nothing new to choose — don't let that blank
+      // clobber the parent folder already saved from the first connect.
+      const parentFolderId = parentFolderInput.trim()
+        ? extractFolderId(parentFolderInput.trim())
+        : googleParentFolderId
       setGoogleConfig({ clientId: clientIdInput.trim(), parentFolderId })
       // Immediately set up Drive folder + sheet on first connect
       const { sheetId } = await ensureDriveAndSheet(token, parentFolderId)
@@ -470,7 +482,30 @@ function GoogleSection() {
         )}
       </div>
 
-      {!connected ? (
+      {!connected && wasConnected ? (
+        <div className="space-y-3">
+          <div className="bg-cream-100 rounded-2xl p-4 text-sm text-stone-600">
+            <p>
+              Google Sync was already set up on this baby's log. For your privacy, the sign-in
+              token isn't kept after the tab closes (it only lasts about an hour) — so it's gone
+              after a reload, but your Drive folder and spreadsheet are untouched.
+            </p>
+          </div>
+          <Button fullWidth onClick={handleConnect} disabled={status === 'connecting'}>
+            {status === 'connecting' ? 'Opening Google sign-in…' : 'Reconnect Google account'}
+          </Button>
+          {googleFolderId && (
+            <a
+              href={`https://drive.google.com/drive/folders/${googleFolderId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-xs text-stone-400 underline"
+            >
+              Open your data folder in Drive →
+            </a>
+          )}
+        </div>
+      ) : !connected ? (
         <div className="space-y-4">
           {/* Explainer */}
           <div className="bg-cream-100 rounded-2xl p-4 space-y-2 text-sm text-stone-600">

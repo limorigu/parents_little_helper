@@ -248,15 +248,21 @@ export function feedFields(f: FeedEntry): EntryFields {
   const typeLabel: Record<FeedEntry['type'], string> = {
     'breast-left': 'Feeding (L breast)',
     'breast-right': 'Feeding (R breast)',
+    'breast-both': 'Feeding (both breasts)',
     'bottle-formula': 'Feeding (formula)',
     'bottle-pumped': 'Feeding (pumped)',
     solid: 'Feeding (solid)',
     unspecified: 'Feeding',
   }
   const startIso = f.date
-  const endIso = f.durationMinutes
-    ? new Date(new Date(startIso).getTime() + f.durationMinutes * 60_000).toISOString()
-    : ''
+  // Prefer an explicit end time if one was logged; fall back to deriving one
+  // from the duration (older entries, or breastfeeding logged by duration
+  // rather than by watching the clock).
+  const endIso = f.endTime
+    ? f.endTime
+    : f.durationMinutes
+      ? new Date(new Date(startIso).getTime() + f.durationMinutes * 60_000).toISOString()
+      : ''
   return {
     date: localDayKey(startIso),
     activity: typeLabel[f.type],
@@ -660,6 +666,7 @@ export function parseActivityRows(
           : null
       result.feeds.push({
         date: startIso ?? `${dateStr}T00:00:00`,
+        endTime: endIso,
         type: 'unspecified',  // the sheet doesn't tell us which sub-type this was — don't guess; user can edit individual entries later
         durationMinutes: durationMins && durationMins > 0 ? durationMins : null,
         amountMl: null,

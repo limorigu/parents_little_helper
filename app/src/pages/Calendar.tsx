@@ -188,7 +188,7 @@ function CelebrateModal({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function Calendar() {
-  const { baby, celebrations } = useAppStore()
+  const { baby, celebrations, recordedMilestones } = useAppStore()
   const [viewDate, setViewDate] = useState(new Date())
   const [addModal, setAddModal] = useState(false)
   const [celebrateEvent, setCelebrateEvent] = useState<CalendarEvent | null>(null)
@@ -235,6 +235,23 @@ export function Calendar() {
     return celebrations.find((c) => c.eventId === eventId)
   }
 
+  // A "celebration photo" can come from two places: the Calendar's own
+  // Celebrate flow (a CelebrationPhoto, keyed by event id) for birthdays/
+  // month markers, or — for milestone events — the photo already captured
+  // when that milestone was recorded via the Milestone Recorder. Merge both
+  // sources so anywhere on the calendar that shows "the photo for this day"
+  // picks up either one automatically, without milestone events needing
+  // their own separate Celebrate flow.
+  function photoFor(e: CalendarEvent): { mediaUrl: string; mediaType: 'photo' | 'video'; note: string } | undefined {
+    const celebration = celebrationFor(e.id)
+    if (celebration) return celebration
+    if (e.id.startsWith('rm-')) {
+      const rm = recordedMilestones.find((r) => r.id === e.id.slice(3))
+      if (rm?.mediaUrl) return { mediaUrl: rm.mediaUrl, mediaType: rm.mediaType ?? 'photo', note: rm.notes }
+    }
+    return undefined
+  }
+
   const eventTypeIcon = (type: CalendarEvent['type']) =>
     type === 'birthday' ? '🎂' : type === 'milestone' ? '⭐' : type === 'appointment' ? '🩺' : '📌'
 
@@ -273,7 +290,7 @@ export function Calendar() {
               const isToday = isSameDay(day, new Date())
               const isSelected = selectedDate === key
               const hasSpecial = events.some((e) => e.isSpecial)
-              const hasCelebration = events.some((e) => celebrationFor(e.id))
+              const hasCelebration = events.some((e) => photoFor(e))
               return (
                 <button
                   key={key}
@@ -306,7 +323,7 @@ export function Calendar() {
             ) : (
               <div className="space-y-3">
                 {selectedEvents.map((e) => {
-                  const photo = celebrationFor(e.id)
+                  const photo = photoFor(e)
                   return (
                     <Card key={e.id} padding="sm" className={e.isSpecial ? 'border-blush-100' : ''}>
                       {/* Photo if saved */}
@@ -358,7 +375,7 @@ export function Calendar() {
             <div className="space-y-2">
               {upcomingEvents.slice(0, 6).map((e) => {
                 const daysUntil = differenceInDays(parseISO(e.date), new Date())
-                const photo = celebrationFor(e.id)
+                const photo = photoFor(e)
                 return (
                   <Card key={e.id} padding="sm" className="flex items-center gap-3">
                     <div className="w-10 text-center shrink-0">
