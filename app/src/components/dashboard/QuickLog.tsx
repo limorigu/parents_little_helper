@@ -45,8 +45,16 @@ export function QuickLog() {
     return () => clearInterval(id)
   }, [])
 
-  const activeNap = sleep.find((s) => !s.endTime)
-  const activePlay = play.find((p) => !p.endTime)
+  // If more than one entry is somehow left "open" (no endTime) — e.g. from an
+  // import, or a missed stop-tap — prefer the one that started most recently
+  // rather than whichever happens to sit first in the array, so a stale/old
+  // open entry can't masquerade as the current session on the dashboard.
+  const activeNap = sleep
+    .filter((s) => !s.endTime)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0]
+  const activePlay = play
+    .filter((p) => !p.endTime)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0]
 
   function flash(key: TileDef['key']) {
     setJustLogged(key)

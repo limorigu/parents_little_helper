@@ -619,15 +619,20 @@ export function parseActivityRows(
     const activity = (colMap.activity !== undefined ? row[colMap.activity] : '')?.trim().toLowerCase() ?? ''
     if (!activity) continue
 
-    if (colMap.date !== undefined) {
-      const rowDate = parseFlexibleDate(row[colMap.date] ?? '')
-      if (rowDate) runningDate = rowDate
-    }
+    const rowOwnDate = colMap.date !== undefined ? parseFlexibleDate(row[colMap.date] ?? '') : null
+    if (rowOwnDate) runningDate = rowOwnDate
     if (!runningDate) {
       if (!fallbackDateStr) throw new MissingDateError(`${tabLabel} is missing a date for row ${i + 1} — please pick a fallback date.`)
       runningDate = fallbackDateStr
     }
-    const dateStr = runningDate
+
+    // An in-progress row (no End Time yet) represents "still happening right now."
+    // If its own Date cell was left blank, trust today's real date instead of
+    // fill-down from a previous row — otherwise a currently-open session can get
+    // silently backdated to whatever day the last *closed* row happened to be,
+    // making it look like it's been running ~24h longer than it has.
+    const rowIsOpen = colMap.end !== undefined && !(row[colMap.end] ?? '').trim()
+    const dateStr = rowIsOpen && !rowOwnDate ? format(new Date(), 'yyyy-MM-dd') : runningDate
 
     result.total++
     const startIso = colMap.start !== undefined ? parseTime(row[colMap.start] ?? '', dateStr) : null
