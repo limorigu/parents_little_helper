@@ -17,6 +17,7 @@ import type {
   RecordedMilestone,
   DoctorVisit,
 } from '../store/useAppStore'
+import { localDayKey } from './utils'
 
 // ── REST base URLs ──────────────────────────────────────────────────────────
 const DRIVE = 'https://www.googleapis.com/drive/v3/files'
@@ -250,13 +251,14 @@ export function feedFields(f: FeedEntry): EntryFields {
     'bottle-formula': 'Feeding (formula)',
     'bottle-pumped': 'Feeding (pumped)',
     solid: 'Feeding (solid)',
+    unspecified: 'Feeding',
   }
   const startIso = f.date
   const endIso = f.durationMinutes
     ? new Date(new Date(startIso).getTime() + f.durationMinutes * 60_000).toISOString()
     : ''
   return {
-    date: startIso.slice(0, 10),
+    date: localDayKey(startIso),
     activity: typeLabel[f.type],
     startTime: fmt12(startIso),
     endTime: endIso ? fmt12(endIso) : '',
@@ -271,8 +273,8 @@ export function sleepFields(s: SleepEntry): EntryFields {
       ? Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60_000)
       : null
   return {
-    date: s.startTime.slice(0, 10),
-    activity: s.type === 'night' ? 'Sleep (night)' : 'Sleep (nap)',
+    date: localDayKey(s.startTime),
+    activity: s.type === 'night' ? 'Sleep (night)' : s.type === 'nap' ? 'Sleep (nap)' : 'Sleep',
     startTime: fmt12(s.startTime),
     endTime: s.endTime ? fmt12(s.endTime) : '',
     duration: mins !== null ? fmtDur(mins) : '',
@@ -286,7 +288,7 @@ export function playFields(p: PlayEntry): EntryFields {
       ? Math.round((new Date(p.endTime).getTime() - new Date(p.startTime).getTime()) / 60_000)
       : null
   return {
-    date: p.startTime.slice(0, 10),
+    date: localDayKey(p.startTime),
     activity: 'Play',
     startTime: fmt12(p.startTime),
     endTime: p.endTime ? fmt12(p.endTime) : '',
@@ -301,7 +303,7 @@ export function diaperFields(d: DiaperEntry): EntryFields {
       ? Math.round((new Date(d.endTime).getTime() - new Date(d.startTime).getTime()) / 60_000)
       : null
   return {
-    date: d.startTime.slice(0, 10),
+    date: localDayKey(d.startTime),
     activity: `Diaper (${d.type})`,
     startTime: fmt12(d.startTime),
     endTime: d.endTime ? fmt12(d.endTime) : '',
@@ -658,7 +660,7 @@ export function parseActivityRows(
           : null
       result.feeds.push({
         date: startIso ?? `${dateStr}T00:00:00`,
-        type: 'breast-left',  // default; user can edit individual entries later
+        type: 'unspecified',  // the sheet doesn't tell us which sub-type this was — don't guess; user can edit individual entries later
         durationMinutes: durationMins && durationMins > 0 ? durationMins : null,
         amountMl: null,
         notes,

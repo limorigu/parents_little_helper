@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
-import { uid, timeAgo, elapsedSince } from '../../lib/utils'
+import { uid, timeAgo, elapsedSince, nowLocalIso } from '../../lib/utils'
 import { Card } from '../ui/Card'
 
 type ButtonState = 'idle' | 'active' | 'justLogged'
@@ -62,9 +62,15 @@ export function QuickLog() {
   }
 
   function handleTap(key: TileDef['key']) {
-    const now = new Date().toISOString()
+    // Local naive, matching what the Tracker modals write — a UTC "…Z" string
+    // here would both mis-bucket the entry's calendar day near midnight and
+    // render blank in the edit modal's datetime-local inputs.
+    const now = nowLocalIso()
     if (key === 'feed') {
-      addFeed({ id: uid(), date: now, type: 'bottle-formula', durationMinutes: null, amountMl: null, notes: '' })
+      // Quick-tap doesn't know breast-vs-bottle etc — log it honestly as
+      // "unspecified" rather than guessing, and let the user refine it later
+      // via the edit modal. Avoids false precision in the logged history.
+      addFeed({ id: uid(), date: now, type: 'unspecified', durationMinutes: null, amountMl: null, notes: '' })
       flash(key)
     } else if (key === 'nappy') {
       addDiaper({ id: uid(), startTime: now, endTime: now, type: 'unknown', notes: '' })
@@ -73,7 +79,9 @@ export function QuickLog() {
       if (activeNap) {
         updateSleep(activeNap.id, { endTime: now })
       } else {
-        addSleep({ id: uid(), startTime: now, endTime: null, type: 'nap', location: '', notes: '' })
+        // Same reasoning as feed above: don't guess nap vs. night sleep on a
+        // bare tap, log "unspecified" and let the user refine it later.
+        addSleep({ id: uid(), startTime: now, endTime: null, type: 'unspecified', location: '', notes: '' })
       }
       flash(key)
     } else if (key === 'play') {

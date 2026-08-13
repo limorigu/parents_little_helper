@@ -1,5 +1,6 @@
-import { parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import type { FeedEntry, SleepEntry, DiaperEntry, PlayEntry } from '../store/useAppStore'
+import { localDayKey } from './utils'
 
 export type ActivityType = 'Feed' | 'Sleep' | 'Nappy' | 'Play'
 export type TimeBucket = 'Morning' | 'Afternoon' | 'Evening' | 'Night'
@@ -11,6 +12,28 @@ export const ACTIVITY_COLORS: Record<ActivityType, string> = {
   Sleep: 'marigold',
   Nappy: 'blush',
   Play: 'periwinkle',
+}
+
+// Shared colour/emoji lookups for anything that renders activities visually
+// (charts, timelines, clocks) — kept here so every visualization component
+// stays in sync with a single source of truth.
+//
+// These are `var(--color-*)` references rather than literal hexes on purpose:
+// SVG `fill`/`stroke` and recharts both accept CSS variables, so the charts flip
+// with Night Owl mode along with the rest of the UI. Literal hexes froze the
+// light-mode palette into the charts and left them muddy against a dark card.
+export const ACTIVITY_HEX: Record<ActivityType, string> = {
+  Feed: 'var(--color-sage-500)',
+  Sleep: 'var(--color-marigold-500)',
+  Nappy: 'var(--color-blush-500)',
+  Play: 'var(--color-periwinkle-500)',
+}
+
+export const ACTIVITY_EMOJI: Record<ActivityType, string> = {
+  Feed: '🍼',
+  Sleep: '🌙',
+  Nappy: '🧷',
+  Play: '🧸',
 }
 
 export function getTimeBucket(hour: number): TimeBucket {
@@ -77,6 +100,115 @@ export function activeDayCount(feeds: FeedEntry[], sleep: SleepEntry[], diaper: 
   diaper.forEach((d) => days.add(dateKey(parseISO(d.startTime))))
   play.forEach((p) => days.add(dateKey(parseISO(p.startTime))))
   return days.size
+}
+
+/** Every distinct calendar day (yyyy-MM-dd, local) with at least one logged entry, most recent first. */
+export function listActivityDays(feeds: FeedEntry[], sleep: SleepEntry[], diaper: DiaperEntry[], play: PlayEntry[]): string[] {
+  const days = new Set<string>()
+  const add = (iso: string) => {
+    const d = parseISO(iso)
+    if (!isNaN(d.getTime())) days.add(format(d, 'yyyy-MM-dd'))
+  }
+  feeds.forEach((f) => add(f.date))
+  sleep.forEach((s) => add(s.startTime))
+  diaper.forEach((d) => add(d.startTime))
+  play.forEach((p) => add(p.startTime))
+  return [...days].sort((a, b) => (a < b ? 1 : -1))
+}
+
+// ── Per-day events & clipping ────────────────────────────────────────────────
+
+/** A single logged activity, positioned in real time — the shared shape behind
+ * every per-day visualization (timeline bars, radial clock, per-day heatmap). */
+export interface DayEvent {
+  type: ActivityType
+  start: Date
+  end: Date | null
+  detail: string
+}
+
+function isOnDay(iso: string, dateStr: string): boolean {
+  // Via localDayKey rather than a raw prefix match, so entries written as UTC
+  // ISO strings by older versions of the quick-log buttons still land on the
+  // calendar day the parent actually logged them on.
+  return localDayKey(iso) === dateStr
+}
+
+/** All logged events that touch a given calendar day (started that day, or an
+ * overnight sleep/play session that ended that day), sorted chronologically. */
+export function buildDayEvents(
+  feeds: FeedEntry[],
+  sleep: SleepEntry[],
+  diaper: DiaperEntry[],
+  play: PlayEntry[],
+  dateStr: string
+): DayEvent[] {
+  const events: DayEvent[] = []
+
+  feeds.forEach((f) => {
+    if (!isOnDay(f.date, dateStr)) return
+    const start = parseISO(f.date)
+    if (!isNaN(start.getTime())) events.push({ type: 'Feed', start, end: null, detail: f.notes || '' })
+  })
+  diaper.forEach((d) => {
+    if (!isOnDay(d.startTime, dateStr)) return
+    const start = parseISO(d.startTime)
+    if (!isNaN(start.getTime())) events.push({ type: 'Nappy', start, end: null, detail: d.notes || '' })
+  })
+  sleep.forEach((s) => {
+    if (!isOnDay(s.startTime, dateStr) && !(s.endTime && isOnDay(s.endTime, dateStr))) return
+    const start = parseISO(s.startTime)
+    if (isNaN(start.getTime())) return
+    const end = s.endTime ? parseISO(s.endTime) : null
+    events.push({ type: 'Sleep', start, end: end && !isNaN(end.getTime()) ? end : null, detail: s.location || '' })
+  })
+  play.forEach((p) => {
+    if (!isOnDay(p.startTime, dateStr) && !(p.endTime && isOnDay(p.endTime, dateStr))) return
+    const start = parseISO(p.startTime)
+    if (isNaN(start.getTime())) return
+    const end = p.endTime ? parseISO(p.endTime) : null
+    events.push({ type: 'Play', start, end: end && !isNaN(end.getTime()) ? end : null, detail: p.notes || '' })
+  })
+
+  return events.sort((a, b) => a.start.getTime() - b.start.getTime())
+}
+
+export interface ClippedSpan {
+  /** Hours since midnight of the visualized day, in [0, 24]. */
+  startHours: number
+  endHours: number
+  /** True if the underlying session has no end yet (still in progress). */
+  ongoing: boolean
+}
+
+/**
+ * Clip one event's real start/end against a single calendar day's [0, 24) window,
+ * so overnight sessions (started yesterday, or still running past midnight) render
+ * sanely on a single day's axis instead of producing negative widths or wrap-around
+ * angles. Feed/Nappy are treated as instantaneous points at their start time.
+ * Returns null if the event doesn't actually fall within this day's window.
+ */
+export function clipEventToDay(event: DayEvent, dateStr: string): ClippedSpan | null {
+  const dayStart = new Date(`${dateStr}T00:00:00`)
+  const dayStartMs = dayStart.getTime()
+  const dayEndMs = dayStartMs + 24 * 3_600_000
+
+  if (event.type === 'Feed' || event.type === 'Nappy') {
+    const t = event.start.getTime()
+    if (t < dayStartMs || t >= dayEndMs) return null
+    const h = (t - dayStartMs) / 3_600_000
+    return { startHours: h, endHours: h, ongoing: false }
+  }
+
+  const rawEndMs = event.end ? event.end.getTime() : Date.now()
+  const startMs = Math.max(event.start.getTime(), dayStartMs)
+  const endMs = Math.min(rawEndMs, dayEndMs)
+  if (startMs >= dayEndMs || endMs <= dayStartMs) return null
+  return {
+    startHours: (startMs - dayStartMs) / 3_600_000,
+    endHours: Math.max((endMs - dayStartMs) / 3_600_000, (startMs - dayStartMs) / 3_600_000),
+    ongoing: !event.end,
+  }
 }
 
 // ── Wake windows ─────────────────────────────────────────────────────────────
@@ -217,6 +349,26 @@ export function computeHourlyHeatmap(feeds: FeedEntry[], sleep: SleepEntry[], di
   return heatmap
 }
 
+/** Same shape as `computeHourlyHeatmap`, but scoped to a single calendar day. */
+export function computeHourlyHeatmapForDay(
+  feeds: FeedEntry[],
+  sleep: SleepEntry[],
+  diaper: DiaperEntry[],
+  play: PlayEntry[],
+  dateStr: string
+): HourlyHeatmap {
+  const heatmap: HourlyHeatmap = {
+    Feed: new Array(24).fill(0),
+    Sleep: new Array(24).fill(0),
+    Nappy: new Array(24).fill(0),
+    Play: new Array(24).fill(0),
+  }
+  buildDayEvents(feeds, sleep, diaper, play, dateStr).forEach((e) => {
+    addCoverage(heatmap[e.type], e.start.toISOString(), e.end ? e.end.toISOString() : null)
+  })
+  return heatmap
+}
+
 // ── Daily totals & recommendations ──────────────────────────────────────────
 
 export interface DailyTotals {
@@ -303,6 +455,181 @@ export function generateRecommendations(weeks: number, totals: DailyTotals, wake
     recs.push({ level: 'info', icon: '🍼', text: `Averaging ${totals.avgFeedsPerDay.toFixed(1)} feeds/day, more than the ${fMin}–${fMax} typical for ${band.label} — could be a growth spurt or cluster feeding.` })
   } else {
     recs.push({ level: 'good', icon: '🍼', text: `${totals.avgFeedsPerDay.toFixed(1)} feeds/day fits the ${fMin}–${fMax} typical for ${band.label}.` })
+  }
+
+  return recs
+}
+
+// ── "Today so far" ────────────────────────────────────────────────────────────
+
+function fmtMin(mins: number): string {
+  if (mins < 60) return `${Math.round(mins)}m`
+  const h = Math.floor(mins / 60)
+  const m = Math.round(mins % 60)
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+export interface TodaySoFar {
+  dateStr: string
+  /** Fractional hours elapsed since local midnight (e.g. 14.5 = 2:30pm). */
+  hoursElapsed: number
+  feedCount: number
+  napCount: number
+  nightCount: number
+  /** Total sleep minutes today, counting an in-progress session up to now. */
+  sleepMinutes: number
+  diaperCount: number
+  playCount: number
+  /** Total play minutes today, counting an in-progress session up to now. */
+  playMinutes: number
+  currentlyAsleep: boolean
+  currentlySleepType: SleepEntry['type'] | null
+  currentSleepStartedAt: string | null
+  currentlyPlaying: boolean
+  currentPlayStartedAt: string | null
+  lastFeedAgoMinutes: number | null
+  /** Minutes since the most recently *ended* sleep today, if currently awake. */
+  awakeSinceMinutes: number | null
+}
+
+/** Snapshot of "how today's going" as of right now, for the day given by `dateStr`. */
+export function computeTodaySoFar(
+  feeds: FeedEntry[],
+  sleep: SleepEntry[],
+  diaper: DiaperEntry[],
+  play: PlayEntry[],
+  dateStr: string
+): TodaySoFar {
+  const now = new Date()
+  const hoursElapsed = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600
+
+  const todaySleep = sleep.filter((s) => isOnDay(s.startTime, dateStr) || (s.endTime && isOnDay(s.endTime, dateStr)))
+  const todayPlay = play.filter((p) => isOnDay(p.startTime, dateStr) || (p.endTime && isOnDay(p.endTime, dateStr)))
+  const todayFeeds = feeds.filter((f) => isOnDay(f.date, dateStr))
+  const todayDiaper = diaper.filter((d) => isOnDay(d.startTime, dateStr))
+
+  const activeNap = todaySleep.find((s) => !s.endTime) ?? null
+  const activePlay = todayPlay.find((p) => !p.endTime) ?? null
+
+  const minutesOf = (entries: Array<{ startTime: string; endTime: string | null }>) =>
+    entries.reduce((sum, e) => {
+      const start = new Date(e.startTime).getTime()
+      const end = e.endTime ? new Date(e.endTime).getTime() : now.getTime()
+      const mins = (end - start) / 60_000
+      return mins > 0 ? sum + mins : sum
+    }, 0)
+
+  const lastFeed = [...todayFeeds].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] ?? null
+  const lastFeedAgoMinutes = lastFeed ? Math.max(0, Math.round((now.getTime() - new Date(lastFeed.date).getTime()) / 60_000)) : null
+
+  const lastEndedSleep =
+    [...todaySleep]
+      .filter((s) => s.endTime)
+      .sort((a, b) => new Date(b.endTime as string).getTime() - new Date(a.endTime as string).getTime())[0] ?? null
+  const awakeSinceMinutes =
+    !activeNap && lastEndedSleep
+      ? Math.max(0, Math.round((now.getTime() - new Date(lastEndedSleep.endTime as string).getTime()) / 60_000))
+      : null
+
+  return {
+    dateStr,
+    hoursElapsed,
+    feedCount: todayFeeds.length,
+    napCount: todaySleep.filter((s) => s.type === 'nap').length,
+    nightCount: todaySleep.filter((s) => s.type === 'night').length,
+    sleepMinutes: minutesOf(todaySleep),
+    diaperCount: todayDiaper.length,
+    playCount: todayPlay.length,
+    playMinutes: minutesOf(todayPlay),
+    currentlyAsleep: Boolean(activeNap),
+    currentlySleepType: activeNap ? activeNap.type : null,
+    currentSleepStartedAt: activeNap ? activeNap.startTime : null,
+    currentlyPlaying: Boolean(activePlay),
+    currentPlayStartedAt: activePlay ? activePlay.startTime : null,
+    lastFeedAgoMinutes,
+    awakeSinceMinutes,
+  }
+}
+
+/**
+ * Heuristic nudges comparing today-so-far against the household's own rolling
+ * average (via `totals`), plus age-based overtiredness checks — not medical
+ * advice, just gentle "here's how today compares to your usual" commentary.
+ */
+export function generateTodayNudges(
+  weeks: number,
+  soFar: TodaySoFar,
+  totals: DailyTotals,
+  wakeWindows: WakeWindowResult,
+  numDays: number
+): Recommendation[] {
+  const band = getAgeBand(weeks)
+  const recs: Recommendation[] = []
+
+  if (soFar.hoursElapsed < 1.5) {
+    return [{ level: 'info', icon: '🌅', text: `Early yet — check back later today for how things are shaping up.` }]
+  }
+
+  // Need at least one prior day of history for a "usual pace" baseline to mean anything.
+  const hasBaseline = numDays >= 2
+  const frac = Math.max(soFar.hoursElapsed / 24, 1 / 24)
+
+  if (hasBaseline) {
+    const expectedFeeds = totals.avgFeedsPerDay * frac
+    if (soFar.feedCount < expectedFeeds - 1.25) {
+      recs.push({
+        level: 'watch',
+        icon: '🍼',
+        text: `${soFar.feedCount} feed${soFar.feedCount === 1 ? '' : 's'} so far — a bit behind your usual pace by this hour (usually around ${expectedFeeds.toFixed(1)} by now).`,
+      })
+    } else if (soFar.feedCount > expectedFeeds + 1.25) {
+      recs.push({
+        level: 'info',
+        icon: '🍼',
+        text: `${soFar.feedCount} feeds already today — more than your usual pace by now. Could be a growth spurt, or just a hungrier day.`,
+      })
+    } else {
+      recs.push({ level: 'good', icon: '🍼', text: `${soFar.feedCount} feed${soFar.feedCount === 1 ? '' : 's'} so far — right on your usual pace.` })
+    }
+  } else if (soFar.feedCount > 0) {
+    recs.push({ level: 'info', icon: '🍼', text: `${soFar.feedCount} feed${soFar.feedCount === 1 ? '' : 's'} logged today. Nudges get smarter once there's a few days of history to compare against.` })
+  }
+
+  if (soFar.currentlyAsleep) {
+    recs.push({
+      level: 'good',
+      icon: soFar.currentlySleepType === 'night' ? '🌙' : soFar.currentlySleepType === 'nap' ? '☀️' : '❓',
+      text: `Currently ${soFar.currentlySleepType === 'night' ? 'down for the night' : soFar.currentlySleepType === 'nap' ? 'napping' : 'sleeping'} — tracking as in-progress.`,
+    })
+  } else if (soFar.awakeSinceMinutes !== null) {
+    const [, wMax] = band.wakeWindowMinutes
+    // Compare against whichever is more informative: baby's age-typical max, or
+    // (once there's enough history) this household's own observed average.
+    const threshold = wakeWindows.avgMinutes !== null ? Math.max(wMax, wakeWindows.avgMinutes) : wMax
+    if (soFar.awakeSinceMinutes > threshold + 20) {
+      recs.push({
+        level: 'watch',
+        icon: '⏱️',
+        text: `Awake ${fmtMin(soFar.awakeSinceMinutes)} since the last sleep ended — longer than ${wakeWindows.avgMinutes !== null ? 'usual' : `the ~${wMax}-min typical max for ${band.label}`}. Watch for overtiredness cues (fussing, eye-rubbing) and consider starting the next sleep soon.`,
+      })
+    }
+  }
+
+  if (hasBaseline) {
+    const [sleepMin] = band.totalSleepHours
+    const expectedSleepHoursByNow = sleepMin * frac
+    const sleepHoursSoFar = soFar.sleepMinutes / 60
+    if (soFar.hoursElapsed >= 6 && sleepHoursSoFar < expectedSleepHoursByNow - 0.75) {
+      recs.push({
+        level: 'watch',
+        icon: '😴',
+        text: `${sleepHoursSoFar.toFixed(1)}h of sleep logged so far today — behind the pace needed to reach the ${sleepMin}h+ typical for ${band.label}. An earlier next nap or bedtime could help catch up.`,
+      })
+    }
+  }
+
+  if (recs.length === 0) {
+    recs.push({ level: 'good', icon: '👍', text: `Nothing stands out yet — today's tracking close to your usual rhythm so far.` })
   }
 
   return recs

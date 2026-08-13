@@ -1,34 +1,30 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { format, parseISO } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useAppStore } from '../../store/useAppStore'
-import { getBabyAgeWeeks } from '../../lib/utils'
+import { getBabyAgeWeeks, today } from '../../lib/utils'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
+import { DayTimelineBars } from './DayTimelineBars'
+import { DayRadialClock } from './DayRadialClock'
 import {
   computeWakeWindows,
   computeSequences,
   computeHourlyHeatmap,
+  computeHourlyHeatmapForDay,
   computeDailyTotals,
   generateRecommendations,
   activeDayCount,
+  listActivityDays,
+  buildDayEvents,
+  ACTIVITY_HEX,
+  ACTIVITY_EMOJI,
   BUCKETS,
   type ActivityType,
   type RecommendationLevel,
 } from '../../lib/insights'
 
-const ACTIVITY_HEX: Record<ActivityType, string> = {
-  Feed: '#2a9d8f',
-  Sleep: '#d9a83e',
-  Nappy: '#e76f51',
-  Play: '#6d75d1',
-}
-
-const ACTIVITY_EMOJI: Record<ActivityType, string> = {
-  Feed: '🍼',
-  Sleep: '🌙',
-  Nappy: '🧷',
-  Play: '🧸',
-}
+type DayVizStyle = 'grid' | 'timeline' | 'clock'
 
 const LEVEL_STYLES: Record<RecommendationLevel, { bg: string; border: string; text: string; label: string }> = {
   good: { bg: 'bg-sage-50', border: 'border-sage-200', text: 'text-sage-700', label: 'On track' },
@@ -56,7 +52,7 @@ function HeatmapRow({ type, counts, max }: { type: ActivityType; counts: number[
               title={`${type} · ${hour}:00 – ${c} time${c === 1 ? '' : 's'} logged`}
               className="aspect-square rounded-[2px]"
               style={{
-                backgroundColor: intensity > 0 ? ACTIVITY_HEX[type] : '#ecdfc4',
+                backgroundColor: intensity > 0 ? ACTIVITY_HEX[type] : 'var(--color-cream-300)',
                 opacity: intensity > 0 ? 0.25 + intensity * 0.75 : 0.4,
               }}
             />
@@ -69,6 +65,8 @@ function HeatmapRow({ type, counts, max }: { type: ActivityType; counts: number[
 
 export function TrackerInsights() {
   const { baby, feeds, sleep, diaper, play } = useAppStore()
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [vizStyle, setVizStyle] = useState<DayVizStyle>('grid')
 
   const numDays = useMemo(() => activeDayCount(feeds, sleep, diaper, play), [feeds, sleep, diaper, play])
   const totalEntries = feeds.length + sleep.length + diaper.length + play.length
@@ -82,6 +80,15 @@ export function TrackerInsights() {
     () => generateRecommendations(weeks, totals, wakeWindows),
     [weeks, totals, wakeWindows]
   )
+
+  const activityDays = useMemo(() => listActivityDays(feeds, sleep, diaper, play), [feeds, sleep, diaper, play])
+  const activeDay = selectedDay ?? activityDays[0] ?? today()
+  const dayEvents = useMemo(() => buildDayEvents(feeds, sleep, diaper, play, activeDay), [feeds, sleep, diaper, play, activeDay])
+  const dayHeatmap = useMemo(
+    () => computeHourlyHeatmapForDay(feeds, sleep, diaper, play, activeDay),
+    [feeds, sleep, diaper, play, activeDay]
+  )
+  const dayHeatmapMax = Math.max(1, ...Object.values(dayHeatmap).flat())
 
   if (numDays < 3 || totalEntries < 6) {
     return (
@@ -132,6 +139,64 @@ export function TrackerInsights() {
         </div>
       </Card>
 
+      {/* Explore a specific day */}
+      <Card>
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+          <p className="text-sm font-display font-black text-stone-800">Explore a day</p>
+          <div className="flex gap-1">
+            {(
+              [
+                { key: 'grid', label: '▦ Grid' },
+                { key: 'timeline', label: '▬ Timeline' },
+                { key: 'clock', label: '◔ Clock' },
+              ] as const
+            ).map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setVizStyle(s.key)}
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg border-2 transition-all ${vizStyle === s.key ? 'bg-stone-800 text-cream-50 border-stone-800' : 'border-stone-200 text-stone-500'}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-stone-400 mb-3">Pick a day to see exactly how it went, in whichever style clicks for you</p>
+
+        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-1 -mx-1 px-1">
+          {activityDays.map((d) => {
+            const isToday = d === today()
+            const active = d === activeDay
+            return (
+              <button
+                key={d}
+                onClick={() => setSelectedDay(d)}
+                className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl border-2 whitespace-nowrap transition-all ${active ? 'bg-marigold-300 border-stone-800 text-stone-800' : 'border-stone-200 text-stone-500 hover:border-stone-400'}`}
+              >
+                {isToday ? 'Today' : format(parseISO(d), 'EEE d MMM')}
+              </button>
+            )
+          })}
+        </div>
+
+        {dayEvents.length === 0 ? (
+          <EmptyState icon="🗓️" title="Nothing logged this day" />
+        ) : vizStyle === 'grid' ? (
+          <div className="space-y-1.5">
+            {(['Feed', 'Sleep', 'Nappy', 'Play'] as ActivityType[]).map((type) => (
+              <HeatmapRow key={type} type={type} counts={dayHeatmap[type]} max={dayHeatmapMax} />
+            ))}
+            <div className="flex justify-between pl-[4.5rem] text-[10px] text-stone-400 pt-0.5">
+              <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span>
+            </div>
+          </div>
+        ) : vizStyle === 'timeline' ? (
+          <DayTimelineBars events={dayEvents} dateStr={activeDay} showNowLine />
+        ) : (
+          <DayRadialClock events={dayEvents} dateStr={activeDay} />
+        )}
+      </Card>
+
       {/* Wake windows by time of day */}
       {wakeWindows.avgMinutes !== null && (
         <Card padding="none" className="overflow-hidden">
@@ -141,16 +206,26 @@ export function TrackerInsights() {
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={wakeWindowChartData} margin={{ left: -10, right: 16, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ecdfc4" vertical={false} />
-              <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#4e8490' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#4e8490' }} unit="m" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-cream-300)" vertical={false} />
+              <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: 'var(--color-stone-400)' }} />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--color-stone-400)' }} unit="m" />
               <Tooltip
-                contentStyle={{ borderRadius: 8, border: '2px solid #264653', fontSize: 12 }}
+                contentStyle={{
+                  borderRadius: 8,
+                  border: '2px solid var(--color-stone-800)',
+                  background: 'var(--color-cream-50)',
+                  color: 'var(--color-stone-800)',
+                  fontSize: 12,
+                }}
+                itemStyle={{ color: 'var(--color-stone-800)' }}
+                labelStyle={{ color: 'var(--color-stone-600)' }}
                 formatter={(v) => [`${v} min`, 'Avg wake window']}
               />
-              <Bar dataKey="minutes" radius={[6, 6, 0, 0]}>
+              {/* See GrowthChart.tsx — recharts' enter animation doesn't run here
+                  under React 19, so render the bars statically. */}
+              <Bar isAnimationActive={false} dataKey="minutes" radius={[6, 6, 0, 0]}>
                 {wakeWindowChartData.map((d, i) => (
-                  <Cell key={i} fill={d.minutes > 0 ? '#d9a83e' : '#ecdfc4'} />
+                  <Cell key={i} fill={d.minutes > 0 ? 'var(--color-marigold-500)' : 'var(--color-cream-300)'} />
                 ))}
               </Bar>
             </BarChart>
@@ -196,7 +271,7 @@ export function TrackerInsights() {
                         {ACTIVITY_EMOJI[seq.from]}{ACTIVITY_EMOJI[seq.to]} {seq.from} → {seq.to}
                       </p>
                     ) : (
-                      <p className="text-stone-300">Not enough data</p>
+                      <p className="text-stone-400">Not enough data</p>
                     )}
                   </div>
                 )

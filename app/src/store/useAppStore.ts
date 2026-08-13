@@ -41,7 +41,7 @@ export interface RecordedMilestone {
 export interface FeedEntry {
   id: string
   date: string
-  type: 'breast-left' | 'breast-right' | 'bottle-formula' | 'bottle-pumped' | 'solid'
+  type: 'breast-left' | 'breast-right' | 'bottle-formula' | 'bottle-pumped' | 'solid' | 'unspecified'
   durationMinutes: number | null
   amountMl: number | null
   notes: string
@@ -51,7 +51,7 @@ export interface SleepEntry {
   id: string
   startTime: string
   endTime: string | null
-  type: 'night' | 'nap'
+  type: 'night' | 'nap' | 'unspecified'
   location: string
   notes: string
 }
@@ -107,6 +107,10 @@ export interface DiaperEntry {
   endTime: string | null
   type: 'wet' | 'dirty' | 'both' | 'unknown'
   notes: string
+  // Elimination communication (EC): did baby also go in the potty during this
+  // change? Optional/undefined = not tracked (most households don't do EC) —
+  // orthogonal to `type`, which is about what was found in the diaper itself.
+  pottyResult?: 'pee' | 'poop' | 'both'
 }
 
 export interface PlayEntry {

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Star, TrendingUp, ListChecks, ChevronRight, Camera } from 'lucide-react'
 import { format, parseISO, addDays, addMonths } from 'date-fns'
 import { useAppStore } from '../store/useAppStore'
-import { getBabyAgeLabel, getBabyAgeWeeks, today, formatDate } from '../lib/utils'
+import { getBabyAgeLabel, getBabyAgeWeeks, today, formatDate, localDayKey } from '../lib/utils'
 import { getMilestonesForWeek } from '../lib/milestones'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -44,7 +44,7 @@ export function Dashboard() {
   const todayPlan = plans.find((p) => p.date === todayDate)
   const recentMilestone = recordedMilestones[0]
 
-  const todayFeeds = feeds.filter((f) => f.date.startsWith(todayDate))
+  const todayFeeds = feeds.filter((f) => localDayKey(f.date) === todayDate)
   const lastSleep = sleep.find((s) => s.endTime)
   const specialToday = getTodaySpecialEvent(baby.birthDate)
 
@@ -54,9 +54,14 @@ export function Dashboard() {
       subtitle={baby.name ? `${baby.name} is ${getBabyAgeLabel(baby.birthDate)}` : undefined}
     >
       <div className="space-y-5">
-        {/* Logo */}
+        {/* Logo. The wordmark is baked into the PNG in charcoal, which disappears
+            against the Night Owl page background — so it always sits on `bg-cream`,
+            one of the two brand tokens deliberately left out of the `.dark` block
+            and therefore light in both themes. */}
         <div className="flex items-center justify-center py-2">
-          <img src="/logo-horizontal.png" alt="Parents' Little Helper" className="h-14 w-auto" />
+          <span className="bg-cream rounded-2xl px-4 py-2 inline-flex">
+            <img src="/logo-horizontal.png" alt="Parents' Little Helper" className="h-14 w-auto" />
+          </span>
         </div>
 
         {/* Special day banner */}
@@ -134,14 +139,14 @@ export function Dashboard() {
               <ListChecks size={16} className="text-periwinkle-400" />
               <h2 className="font-display text-base text-stone-700">Today's plan</h2>
             </div>
-            <ChevronRight size={16} className="text-stone-300" />
+            <ChevronRight size={16} className="text-stone-400" />
           </div>
           {todayPlan ? (
             <div className="space-y-1.5">
               {todayPlan.tiles.slice(0, 3).map((t) => (
                 <div key={t.id} className="flex items-center gap-2">
                   <div className={`w-1.5 h-1.5 rounded-full ${t.completed ? 'bg-sage-400' : 'bg-stone-200'}`} />
-                  <p className={`text-sm ${t.completed ? 'line-through text-stone-300' : 'text-stone-600'}`}>{t.title}</p>
+                  <p className={`text-sm ${t.completed ? 'line-through text-stone-400' : 'text-stone-600'}`}>{t.title}</p>
                 </div>
               ))}
               {todayPlan.tiles.length > 3 && (
@@ -170,7 +175,7 @@ export function Dashboard() {
             </Link>
             <Link to="/growth">
               <Card hover padding="sm" className="flex items-center gap-3">
-                <span className="w-9 h-9 rounded-xl bg-sage-100 flex items-center justify-center text-sage-500">
+                <span className="w-9 h-9 rounded-xl bg-sage-100 flex items-center justify-center text-sage-600">
                   <TrendingUp size={17} />
                 </span>
                 <div>
@@ -181,7 +186,7 @@ export function Dashboard() {
             </Link>
             <Link to="/doctor">
               <Card hover padding="sm" className="flex items-center gap-3">
-                <span className="w-9 h-9 rounded-xl bg-marigold-100 flex items-center justify-center text-marigold-500">
+                <span className="w-9 h-9 rounded-xl bg-marigold-100 flex items-center justify-center text-marigold-600">
                   <Star size={17} />
                 </span>
                 <div>
@@ -222,7 +227,7 @@ export function Dashboard() {
             <span className="text-xl">🌙</span>
             <div>
               <p className="text-sm font-medium text-stone-700">
-                Last {lastSleep.type === 'night' ? 'night sleep' : 'nap'}
+                Last {lastSleep.type === 'night' ? 'night sleep' : lastSleep.type === 'nap' ? 'nap' : 'sleep'}
               </p>
               <p className="text-xs text-stone-400">
                 {lastSleep.endTime

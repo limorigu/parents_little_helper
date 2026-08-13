@@ -57,6 +57,45 @@ export function today(): string {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
+// ── Timestamp normalisation ──────────────────────────────────────────────────
+//
+// Entries are stored as *local naive* timestamps ("2026-08-13T14:30:00") rather
+// than UTC, because the whole app buckets entries into calendar days by string
+// prefix — a feed at 00:30 on the 13th has to read as the 13th for the parent
+// looking at it, regardless of what UTC thinks. The helpers below are the single
+// place that assumption is enforced, and they stay tolerant of older entries that
+// were written as UTC ISO strings ("…Z") before this was made consistent.
+
+/** Local naive timestamp for writing a new entry, e.g. "2026-08-13T14:30:00". */
+export function nowLocalIso(): string {
+  return format(new Date(), "yyyy-MM-dd'T'HH:mm:ss")
+}
+
+/**
+ * Coerce any stored timestamp into exactly the shape `<input type="datetime-local">`
+ * accepts ("yyyy-MM-ddTHH:mm", local time). Anything else — a UTC string with a
+ * "Z" suffix or milliseconds, in particular — is silently rejected by the browser
+ * and renders as an empty field, which is how quick-logged entries ended up
+ * looking un-editable.
+ */
+export function toDateTimeInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return format(d, "yyyy-MM-dd'T'HH:mm")
+}
+
+/** The local calendar day ("yyyy-MM-dd") a stored timestamp belongs to. */
+export function localDayKey(iso: string): string {
+  if (!iso) return ''
+  // Already a bare date — don't round-trip it through Date(), which would treat
+  // it as UTC midnight and shift it a day backwards west of Greenwich.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
+  return format(d, 'yyyy-MM-dd')
+}
+
 // Short, friendly "how long ago" label for quick-log recent-activity chips.
 export function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()

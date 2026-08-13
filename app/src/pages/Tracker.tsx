@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { formatTime, today, uid } from '../lib/utils'
+import { formatTime, today, uid, toDateTimeInput, localDayKey } from '../lib/utils'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -11,6 +11,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { SheetTable, SheetChip, type SheetColumn, type SheetRow } from '../components/ui/SheetTable'
 import { PageShell } from '../components/layout/PageShell'
 import { TrackerInsights } from '../components/tracker/TrackerInsights'
+import { TodaySchedule } from '../components/tracker/TodaySchedule'
 import type { FeedEntry, SleepEntry, DiaperEntry, PlayEntry } from '../store/useAppStore'
 
 const SHEET_COLUMNS: SheetColumn[] = [
@@ -22,6 +23,10 @@ const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'notes', label: 'Notes' },
 ]
 
+// Diaper tab only — the other tabs' rows simply omit this key, and SheetTable
+// renders a blank cell for any missing key.
+const DIAPER_SHEET_COLUMNS: SheetColumn[] = [...SHEET_COLUMNS, { key: 'potty', label: 'Potty (EC)' }]
+
 type Tab = 'feed' | 'sleep' | 'diaper' | 'play' | 'insights'
 
 const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string }> = [
@@ -30,6 +35,7 @@ const FEED_TYPES: Array<{ value: FeedEntry['type']; label: string; icon: string 
   { value: 'bottle-formula', label: 'Formula', icon: '🍼' },
   { value: 'bottle-pumped', label: 'Pumped milk', icon: '🍼' },
   { value: 'solid', label: 'Solid food', icon: '🥣' },
+  { value: 'unspecified', label: 'Not sure yet', icon: '❓' },
 ]
 
 const DIAPER_TYPES: Array<{ value: DiaperEntry['type']; label: string; icon: string }> = [
@@ -56,7 +62,7 @@ function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
       setDuration(editEntry.durationMinutes ? String(editEntry.durationMinutes) : '')
       setAmount(editEntry.amountMl ? String(editEntry.amountMl) : '')
       setNotes(editEntry.notes)
-      setTime(editEntry.date)
+      setTime(toDateTimeInput(editEntry.date))
     } else {
       setType('breast-left')
       setDuration('')
@@ -126,7 +132,7 @@ function SleepModal({
   editEntry?: SleepEntry | null
 }) {
   const { addSleep, updateSleep } = useAppStore()
-  const [type, setType] = useState<'night' | 'nap'>('nap')
+  const [type, setType] = useState<SleepEntry['type']>('nap')
   const [start, setStart] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
   const [end, setEnd] = useState('')
   const [location, setLocation] = useState('')
@@ -138,8 +144,8 @@ function SleepModal({
     setEndError('')
     if (editEntry) {
       setType(editEntry.type)
-      setStart(editEntry.startTime)
-      setEnd(editEntry.endTime || '')
+      setStart(toDateTimeInput(editEntry.startTime))
+      setEnd(toDateTimeInput(editEntry.endTime))
       setLocation(editEntry.location)
       setNotes(editEntry.notes)
     } else if (active) {
@@ -178,13 +184,13 @@ function SleepModal({
         {showFullForm && (
           <>
             <div className="flex gap-2">
-              {(['night', 'nap'] as const).map((t) => (
+              {(['night', 'nap', 'unspecified'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setType(t)}
                   className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-all ${type === t ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300'}`}
                 >
-                  {t === 'night' ? '🌙 Night sleep' : '☀️ Nap'}
+                  {t === 'night' ? '🌙 Night sleep' : t === 'nap' ? '☀️ Nap' : '❓ Not sure yet'}
                 </button>
               ))}
             </div>
@@ -210,30 +216,39 @@ function SleepModal({
 
 // ── Diaper modal ─────────────────────────────────────────────────────────────
 
+const POTTY_OPTIONS: Array<{ value: NonNullable<DiaperEntry['pottyResult']>; label: string; icon: string }> = [
+  { value: 'pee', label: 'Pee', icon: '💧' },
+  { value: 'poop', label: 'Poop', icon: '💩' },
+  { value: 'both', label: 'Both', icon: '🔄' },
+]
+
 function DiaperModal({ open, onClose, editEntry }: { open: boolean; onClose: () => void; editEntry?: DiaperEntry | null }) {
   const { addDiaper, updateDiaper } = useAppStore()
   const [dtype, setDtype] = useState<DiaperEntry['type']>('wet')
   const [time, setTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
   const [notes, setNotes] = useState('')
+  const [pottyResult, setPottyResult] = useState<DiaperEntry['pottyResult']>(undefined)
 
   useEffect(() => {
     if (!open) return
     if (editEntry) {
       setDtype(editEntry.type)
-      setTime(editEntry.startTime)
+      setTime(toDateTimeInput(editEntry.startTime))
       setNotes(editEntry.notes)
+      setPottyResult(editEntry.pottyResult)
     } else {
       setDtype('wet')
       setTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
       setNotes('')
+      setPottyResult(undefined)
     }
   }, [open, editEntry])
 
   function save() {
     if (editEntry) {
-      updateDiaper(editEntry.id, { startTime: time, type: dtype, notes })
+      updateDiaper(editEntry.id, { startTime: time, type: dtype, notes, pottyResult })
     } else {
-      addDiaper({ id: uid(), startTime: time, endTime: null, type: dtype, notes })
+      addDiaper({ id: uid(), startTime: time, endTime: null, type: dtype, notes, pottyResult })
     }
     onClose()
   }
@@ -253,6 +268,20 @@ function DiaperModal({ open, onClose, editEntry }: { open: boolean; onClose: () 
           ))}
         </div>
         <Input label="Time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} />
+        <div>
+          <p className="text-sm font-medium text-stone-600 mb-2">Went in the potty too? (elimination communication — optional)</p>
+          <div className="grid grid-cols-3 gap-2">
+            {POTTY_OPTIONS.map((po) => (
+              <button
+                key={po.value}
+                onClick={() => setPottyResult((cur) => (cur === po.value ? undefined : po.value))}
+                className={`p-2 rounded-xl border text-sm text-center transition-all ${pottyResult === po.value ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300'}`}
+              >
+                <span className="mr-1">{po.icon}</span> {po.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Colour, rash, anything notable…" />
         <Button fullWidth onClick={save}>{editEntry ? 'Save changes' : 'Save nappy change'}</Button>
       </div>
@@ -273,8 +302,8 @@ function PlayModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
     if (!open) return
     setEndError('')
     if (editEntry) {
-      setStart(editEntry.startTime)
-      setEnd(editEntry.endTime || '')
+      setStart(toDateTimeInput(editEntry.startTime))
+      setEnd(toDateTimeInput(editEntry.endTime))
       setNotes(editEntry.notes)
     } else {
       setStart(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
@@ -323,6 +352,13 @@ const FEED_LABELS: Record<string, string> = {
   'bottle-formula': '🍼 Formula',
   'bottle-pumped': '🍼 Pumped',
   solid: '🥣 Solid',
+  unspecified: '❓ Not sure yet',
+}
+
+const POTTY_LABELS: Record<NonNullable<DiaperEntry['pottyResult']>, string> = {
+  pee: '💧 Pee',
+  poop: '💩 Poop',
+  both: '🔄 Both',
 }
 
 const DIAPER_LABELS: Record<DiaperEntry['type'], string> = {
@@ -335,7 +371,7 @@ const DIAPER_LABELS: Record<DiaperEntry['type'], string> = {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function Tracker() {
-  const { feeds, sleep, diaper, play, deleteFeed, deleteSleep, deleteDiaper, deletePlay } = useAppStore()
+  const { feeds, sleep, diaper, play, baby, deleteFeed, deleteSleep, deleteDiaper, deletePlay } = useAppStore()
   const [tab, setTab] = useState<Tab>('feed')
   const [feedModal, setFeedModal] = useState(false)
   const [sleepModal, setSleepModal] = useState(false)
@@ -399,8 +435,8 @@ export function Tracker() {
     .filter((p) => new Date(p.startTime) >= recent)
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 
-  const todayFeeds = feeds.filter((f) => f.date.startsWith(todayStr))
-  const todayDiapers = diaper.filter((d) => d.startTime.startsWith(todayStr))
+  const todayFeeds = feeds.filter((f) => localDayKey(f.date) === todayStr)
+  const todayDiapers = diaper.filter((d) => localDayKey(d.startTime) === todayStr)
   const activeSleepSession = sleep.find((s) => !s.endTime)
 
   const subtitleParts = [
@@ -414,35 +450,37 @@ export function Tracker() {
       subtitle={subtitleParts.length ? subtitleParts.join(' · ') + ' today' : 'Nothing logged yet today'}
     >
       <div className="space-y-4">
+        <TodaySchedule feeds={feeds} sleep={sleep} diaper={diaper} play={play} birthDate={baby.birthDate} />
+
         {/* Tab switcher */}
         <div className="flex bg-stone-100 rounded-2xl p-1 overflow-x-auto">
           <button
             onClick={() => setTab('feed')}
-            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'feed' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'feed' ? 'bg-cream-50 text-stone-800 ring-2 ring-inset ring-stone-800' : 'text-stone-500'}`}
           >
             🍼 Feeding
           </button>
           <button
             onClick={() => setTab('sleep')}
-            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'sleep' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'sleep' ? 'bg-cream-50 text-stone-800 ring-2 ring-inset ring-stone-800' : 'text-stone-500'}`}
           >
             🌙 Sleep
           </button>
           <button
             onClick={() => setTab('diaper')}
-            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'diaper' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'diaper' ? 'bg-cream-50 text-stone-800 ring-2 ring-inset ring-stone-800' : 'text-stone-500'}`}
           >
             🧷 Nappy
           </button>
           <button
             onClick={() => setTab('play')}
-            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'play' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'play' ? 'bg-cream-50 text-stone-800 ring-2 ring-inset ring-stone-800' : 'text-stone-500'}`}
           >
             🧸 Play
           </button>
           <button
             onClick={() => setTab('insights')}
-            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'insights' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 py-2 px-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${tab === 'insights' ? 'bg-cream-50 text-stone-800 ring-2 ring-inset ring-stone-800' : 'text-stone-500'}`}
           >
             📊 Insights
           </button>
@@ -483,7 +521,7 @@ export function Tracker() {
             {activeSleepSession ? (
               <Card className="bg-periwinkle-50 border-periwinkle-200">
                 <p className="text-sm font-medium text-periwinkle-700 mb-1">
-                  {activeSleepSession.type === 'night' ? '🌙 Night sleep' : '☀️ Nap'} in progress
+                  {activeSleepSession.type === 'night' ? '🌙 Night sleep' : activeSleepSession.type === 'nap' ? '☀️ Nap' : '❓ Sleep'} in progress
                 </p>
                 <p className="text-xs text-periwinkle-500 mb-3">
                   Started {formatTime(activeSleepSession.startTime)}
@@ -512,7 +550,7 @@ export function Tracker() {
                     id: s.id,
                     cells: {
                       date: format(parseISO(s.startTime), 'd MMM'),
-                      activity: <SheetChip label={s.type === 'night' ? '🌙 Night' : '☀️ Nap'} color="marigold" />,
+                      activity: <SheetChip label={s.type === 'night' ? '🌙 Night' : s.type === 'nap' ? '☀️ Nap' : '❓ Not sure yet'} color="marigold" />,
                       start: formatTime(s.startTime),
                       end: s.endTime ? formatTime(s.endTime) : 'In progress',
                       duration: mins !== null ? (mins >= 60 ? `${(mins / 60).toFixed(1)}h` : `${mins}m`) : '—',
@@ -535,7 +573,7 @@ export function Tracker() {
               <EmptyState icon="🧷" title="No nappy changes logged yet" description="Tap above to start tracking." />
             ) : (
               <SheetTable
-                columns={SHEET_COLUMNS}
+                columns={DIAPER_SHEET_COLUMNS}
                 onEditRow={openEditDiaper}
                 onDeleteRow={deleteDiaper}
                 rows={recentDiaper.map<SheetRow>((d) => ({
@@ -547,6 +585,7 @@ export function Tracker() {
                     end: '—',
                     duration: '—',
                     notes: d.notes || '—',
+                    potty: d.pottyResult ? <SheetChip label={POTTY_LABELS[d.pottyResult]} color="periwinkle" /> : '—',
                   },
                 }))}
               />
