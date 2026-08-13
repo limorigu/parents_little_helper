@@ -30,15 +30,15 @@
   --color-cream-50: #fdfbf7;
   --color-cream-100: #f9f6f0;
   --color-cream-200: #f3ebda;
-  --color-cream-300: #ecdfc4;
+  --color-cream-300: #d9cdb4;
 
   /* Stone → charcoal-tinted neutral scale (text, borders, dark surfaces) */
   --color-stone-50: #eef3f4;
   --color-stone-100: #d3e0e3;
   --color-stone-200: #a7c1c7;
   --color-stone-300: #7aa3ac;
-  --color-stone-400: #4e8490;
-  --color-stone-500: #326b78;
+  --color-stone-400: #45737e;
+  --color-stone-500: #2e6270;
   --color-stone-600: #264653;
   --color-stone-700: #1c3540;
   --color-stone-800: #13242c;
@@ -49,9 +49,9 @@
   --color-blush-100: #fbdccc;
   --color-blush-200: #f7b899;
   --color-blush-300: #f39566;
-  --color-blush-400: #ef7f47;
-  --color-blush-500: #e76f51;
-  --color-blush-600: #c2542f;
+  --color-blush-400: #d2703e;
+  --color-blush-500: #dd6647;
+  --color-blush-600: #a54728;
 
   /* Sage → teal-tinted cool accent */
   --color-sage-50: #e9f6f4;
@@ -69,7 +69,7 @@
   --color-periwinkle-200: #c7d2fe;
   --color-periwinkle-300: #a5b4fc;
   --color-periwinkle-400: #818cf8;
-  --color-periwinkle-500: #6366f1;
+  --color-periwinkle-500: #5457d8;
   --color-periwinkle-600: #4f46e5;
   --color-periwinkle-700: #4338ca;
 
@@ -79,8 +79,8 @@
   --color-marigold-200: #f7db8a;
   --color-marigold-300: #f3c94f;
   --color-marigold-400: #e9c46a;
-  --color-marigold-500: #d9a83e;
-  --color-marigold-600: #b8862a;
+  --color-marigold-500: #b0872f;
+  --color-marigold-600: #866220;
 
   /* Sand — new warm accent for feed/food related UI */
   --color-sand-300: #f7bb8c;
@@ -109,24 +109,44 @@
    Palette sourced from the "Dark Mode Palette" mockup: Deep Void (page bg),
    Charcoal Surface (cards — same hex as the light theme's --color-charcoal,
    so cards and the light-mode brand color line up), Warm Bone (primary
-   text/borders), and four "glow" accents (teal/gold/orange/coral) that
-   replace the light-mode originals they share a base hue with — sage-500,
-   marigold-400, sand-400 and blush-500 respectively. Every other accent
-   shade (the pastel -50/-100 chip backgrounds, etc.) is left as-is; they
-   still read fine as colorful pills against a dark page. */
+   text/borders), and four "glow" accents (teal/gold/orange/coral).
+
+   ── THE INVARIANT ───────────────────────────────────────────────────────
+   Because the flip is silent, a foreground/background pair that reads fine in
+   light mode can invert into white-on-pastel in dark mode. To stop that, every
+   scale runs in the SAME direction in both themes:
+
+       stops 50–300  are SURFACES  (light in light mode, dark in dark mode)
+       stops 400–700 are INK       (dark in light mode, light in dark mode)
+
+   So `bg-sage-100 text-sage-700` and `bg-sand-300 text-stone-800` stay legible
+   in both themes, automatically. Two rules follow, and `npm run check:contrast`
+   enforces them:
+
+     1. Never pair a surface stop with a surface stop, or ink with ink.
+     2. Never use `bg-white` / `text-white`. Those are Tailwind built-ins that
+        live outside @theme, so they can't flip and will strand you at 1.2:1.
+        Use `cream-50` (surface) or `charcoal` (ink that stays dark in BOTH
+        themes, for solid accent fills like buttons and badges).             */
 .dark {
+  /* Tells the browser to render its *native* widgets dark too — the calendar and
+     clock glyphs inside <input type="date|datetime-local">, number spinners, and
+     the default scrollbar. Without it those stay dark-on-dark and effectively
+     disappear, and no amount of palette work can reach them from CSS. */
+  color-scheme: dark;
+
   --color-cream-50: #264653;  /* Charcoal Surface — cards */
   --color-cream-100: #122128; /* Deep Void — page background */
   --color-cream-200: #2f5866;
-  --color-cream-300: #3c6b7a;
+  --color-cream-300: #47798a;
 
   --color-stone-50: #1e2f36;
   --color-stone-100: #263a41;
-  --color-stone-200: #38505a;
-  --color-stone-300: #54666d;
-  --color-stone-400: #93a19f;
-  --color-stone-500: #b6c0ba;
-  --color-stone-600: #d2d8cf;
+  --color-stone-200: #44606b;
+  --color-stone-300: #7d8f95;
+  --color-stone-400: #a9b5b2;
+  --color-stone-500: #c2ccc5;
+  --color-stone-600: #d9ded5;
   --color-stone-700: #e6e2d7;
   --color-stone-800: #f2ebe2; /* Warm Bone — primary text & thick borders */
   --color-stone-900: #fffaf3;
@@ -136,10 +156,50 @@
   --color-sand: #f5b278;    /* Soft Peach */
   --color-sienna: #ed856d;  /* Luminous Coral */
 
-  --color-sage-500: #4abfb0;    /* Teal Glow */
-  --color-marigold-400: #edce79; /* Starlight Gold */
-  --color-sand-400: #f5b278;     /* Soft Peach */
-  --color-blush-500: #ed856d;    /* Luminous Coral */
+  /* Sage — surfaces 50–300, ink 400–700 */
+  --color-sage-50: #14322f;
+  --color-sage-100: #17403c;
+  --color-sage-200: #1f544e;
+  --color-sage-300: #24625b;
+  --color-sage-400: #3fb3a4;
+  --color-sage-500: #4abfb0;  /* Teal Glow */
+  --color-sage-600: #6ed3c5;
+  --color-sage-700: #9ce4d9;
+
+  /* Blush */
+  --color-blush-50: #3a1f16;
+  --color-blush-100: #4a281c;
+  --color-blush-200: #5f3425;
+  --color-blush-300: #70402d;
+  --color-blush-400: #ef8f70;
+  --color-blush-500: #ed856d;  /* Luminous Coral */
+  --color-blush-600: #f3a790;
+  --color-blush-700: #f8c7b8;
+
+  /* Periwinkle */
+  --color-periwinkle-50: #1e2447;
+  --color-periwinkle-100: #262e5b;
+  --color-periwinkle-200: #333d76;
+  --color-periwinkle-300: #3d488c;
+  --color-periwinkle-400: #949bf9;
+  --color-periwinkle-500: #a8adfa;
+  --color-periwinkle-600: #c0c4fc;
+  --color-periwinkle-700: #d5d8fd;
+
+  /* Marigold */
+  --color-marigold-50: #322611;
+  --color-marigold-100: #423218;
+  --color-marigold-200: #57431f;
+  --color-marigold-300: #664f25;
+  --color-marigold-400: #edce79;  /* Starlight Gold */
+  --color-marigold-500: #f0d78f;
+  --color-marigold-600: #f4e2ab;
+  --color-marigold-700: #f8ebc6;
+
+  /* Sand */
+  --color-sand-300: #64401f;
+  --color-sand-400: #f5b278;      /* Soft Peach */
+  --color-sand-500: #f8c395;
 
   --shadow-brutal: 8px 8px 0px 0px #1c343e;
   --shadow-brutal-lg: 12px 12px 0px 0px #1c343e;
@@ -156,6 +216,7 @@
 }
 
 html {
+  color-scheme: light;
   background-color: var(--color-cream-100);
 }
 
@@ -216,5 +277,14 @@ body {
     margin: 0;
     border: none !important;
     box-shadow: none !important;
+  }
+  /* Paper is white whether or not the app is in Night Owl mode, and browsers
+     don't print background colours by default — so pin the brief's ink to a
+     dark value instead of letting the dark theme's near-white text token
+     through, which would print as invisible. */
+  .print-brief,
+  .print-brief * {
+    color: #264653 !important;
+    background: transparent !important;
   }
 }

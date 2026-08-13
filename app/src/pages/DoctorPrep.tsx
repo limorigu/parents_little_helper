@@ -109,9 +109,9 @@ export function DoctorPrep() {
                 <button
                   key={i}
                   onClick={() => toggleQuestion(activeVisit.id, q)}
-                  className="w-full flex items-start gap-3 text-left p-3 rounded-xl bg-white border border-stone-100 hover:border-stone-200 transition-all"
+                  className="w-full flex items-start gap-3 text-left p-3 rounded-xl bg-cream-50 border border-stone-100 hover:border-stone-200 transition-all"
                 >
-                  <span className={`mt-0.5 shrink-0 ${true ? 'text-stone-300' : 'text-sage-500'}`}>
+                  <span className={`mt-0.5 shrink-0 ${true ? 'text-stone-400' : 'text-sage-500'}`}>
                     <Circle size={16} />
                   </span>
                   <span className="text-sm text-stone-700">{q}</span>

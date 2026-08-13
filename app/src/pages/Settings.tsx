@@ -123,9 +123,9 @@ function ProfileSection({
           <label className="flex items-center gap-3 cursor-pointer">
             <div
               onClick={() => set('locationEnabled', !form.locationEnabled)}
-              className={`w-10 h-6 rounded-full flex items-center transition-all ${form.locationEnabled ? 'bg-stone-800' : 'bg-stone-200'}`}
+              className={`w-10 h-6 rounded-full flex items-center transition-all ${form.locationEnabled ? 'bg-stone-800' : 'bg-stone-400'}`}
             >
-              <span className={`w-4 h-4 bg-white rounded-full shadow-sm ml-1 transition-all ${form.locationEnabled ? 'translate-x-4' : ''}`} />
+              <span className={`w-4 h-4 bg-cream-50 rounded-full shadow-sm ml-1 transition-all ${form.locationEnabled ? 'translate-x-4' : ''}`} />
             </div>
             <span className="text-sm text-stone-600">Enable location-based activity suggestions</span>
           </label>
@@ -163,9 +163,9 @@ function AppearanceSection() {
         <span className="text-sm text-stone-600">Night Owl mode</span>
         <div
           onClick={() => setDarkMode(!darkMode)}
-          className={`w-10 h-6 rounded-full flex items-center transition-all shrink-0 ${darkMode ? 'bg-stone-800' : 'bg-stone-200'}`}
+          className={`w-10 h-6 rounded-full flex items-center transition-all shrink-0 ${darkMode ? 'bg-stone-800' : 'bg-stone-400'}`}
         >
-          <span className={`w-4 h-4 bg-white rounded-full shadow-sm ml-1 transition-all ${darkMode ? 'translate-x-4' : ''}`} />
+          <span className={`w-4 h-4 bg-cream-50 rounded-full shadow-sm ml-1 transition-all ${darkMode ? 'translate-x-4' : ''}`} />
         </div>
       </label>
     </Card>
@@ -573,7 +573,7 @@ function GoogleSection() {
               <Cloud size={14} />
               <span className="font-medium">Where new entries get saved</span>
               <span className="ml-auto text-xs text-stone-400">{googleWriteSheetName || 'Activity Log'}</span>
-              <span className="text-stone-300">{showWriteTarget ? '▲' : '▼'}</span>
+              <span className="text-stone-400">{showWriteTarget ? '▲' : '▼'}</span>
             </button>
 
             {showWriteTarget && (
@@ -633,7 +633,7 @@ function GoogleSection() {
             >
               <Download size={14} />
               <span className="font-medium">Import from existing Google Sheet</span>
-              <span className="ml-auto text-stone-300">{showImport ? '▲' : '▼'}</span>
+              <span className="ml-auto text-stone-400">{showImport ? '▲' : '▼'}</span>
             </button>
 
             {showImport && (

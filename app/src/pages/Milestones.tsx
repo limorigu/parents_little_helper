@@ -127,7 +127,7 @@ export function Milestones() {
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
-              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${filter === f.value ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${filter === f.value ? 'bg-stone-800 text-cream-50' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
             >
               {f.label}
             </button>

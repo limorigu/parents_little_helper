@@ -144,7 +144,7 @@ export function GrowthChart() {
             <button
               key={m}
               onClick={() => setMetric(m)}
-              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${metric === m ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500'}`}
+              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${metric === m ? 'bg-cream-50 text-stone-800 ring-2 ring-inset ring-stone-800' : 'text-stone-500'}`}
             >
               {METRIC_LABELS[m].label}
             </button>
@@ -167,20 +167,39 @@ export function GrowthChart() {
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData} margin={{ left: -10, right: 16, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ecdfc4" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#4e8490' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#4e8490' }} />
+                {/* Colours go through the theme's CSS variables rather than literal
+                    hexes so the chart flips with Night Owl mode like everything else.
+                    Dot outlines use --color-charcoal, which is deliberately NOT
+                    overridden in .dark — the dot fill stays bright in both themes, so
+                    its outline has to stay dark in both themes too. */}
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-cream-300)" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--color-stone-400)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--color-stone-400)' }} />
                 <Tooltip
-                  contentStyle={{ borderRadius: 8, border: '2px solid #264653', fontSize: 12 }}
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '2px solid var(--color-stone-800)',
+                    background: 'var(--color-cream-50)',
+                    color: 'var(--color-stone-800)',
+                    fontSize: 12,
+                  }}
+                  itemStyle={{ color: 'var(--color-stone-800)' }}
+                  labelStyle={{ color: 'var(--color-stone-600)' }}
                   formatter={(v) => `${v} ${METRIC_LABELS[metric].unit}`}
                 />
+                {/* isAnimationActive={false}: recharts draws the line in by animating
+                    stroke-dasharray from 0, but under React 19 the animation never
+                    starts — the path was left permanently at `1.39px 273px`, i.e. an
+                    invisible line with only the dots showing. Rendering it statically
+                    is both correct and better for prefers-reduced-motion. */}
                 <Line
+                  isAnimationActive={false}
                   type="monotone"
                   dataKey="value"
-                  stroke="#2a9d8f"
+                  stroke="var(--color-sage-500)"
                   strokeWidth={3}
-                  dot={{ fill: '#2a9d8f', stroke: '#264653', strokeWidth: 2, r: 4 }}
-                  activeDot={{ r: 6, stroke: '#264653', strokeWidth: 2 }}
+                  dot={{ fill: 'var(--color-sage-500)', stroke: 'var(--color-charcoal)', strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, stroke: 'var(--color-charcoal)', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -204,10 +223,10 @@ export function GrowthChart() {
                     {g.notes && <p className="text-xs text-stone-400 mt-0.5">{g.notes}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => openEdit(g)} className="text-stone-300 hover:text-periwinkle-500 transition-colors" aria-label="Edit measurement">
+                    <button onClick={() => openEdit(g)} className="text-stone-400 hover:text-periwinkle-500 transition-colors" aria-label="Edit measurement">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => deleteGrowth(g.id)} className="text-stone-300 hover:text-blush-500 transition-colors" aria-label="Delete measurement">
+                    <button onClick={() => deleteGrowth(g.id)} className="text-stone-400 hover:text-blush-500 transition-colors" aria-label="Delete measurement">
                       <Trash2 size={14} />
                     </button>
                   </div>

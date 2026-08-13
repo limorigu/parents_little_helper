@@ -27,12 +27,12 @@ function SortableTile({ tile, onComplete, onDelete }: {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-start gap-3 p-4 bg-white rounded-2xl border transition-all ${tile.completed ? 'border-sage-200 bg-sage-50/30' : 'border-stone-100 hover:border-stone-200'} shadow-[0_1px_6px_0_rgba(44,38,30,0.06)]`}
+      className={`group flex items-start gap-3 p-4 bg-cream-50 rounded-2xl border transition-all ${tile.completed ? 'border-sage-200 bg-sage-50/30' : 'border-stone-100 hover:border-stone-200'} shadow-[0_1px_6px_0_rgba(44,38,30,0.06)]`}
     >
       <button
         {...listeners}
         {...attributes}
-        className="mt-0.5 text-stone-300 hover:text-stone-400 cursor-grab active:cursor-grabbing touch-none"
+        className="mt-0.5 text-stone-400 hover:text-stone-500 cursor-grab active:cursor-grabbing touch-none"
       >
         <GripVertical size={16} />
       </button>
@@ -66,13 +66,13 @@ function SortableTile({ tile, onComplete, onDelete }: {
       <div className="flex flex-col gap-1.5 shrink-0">
         <button
           onClick={() => onComplete(tile.id)}
-          className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all ${tile.completed ? 'bg-sage-400 border-sage-400 text-white' : 'border-stone-200 text-stone-300 hover:border-sage-400 hover:text-sage-500'}`}
+          className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all ${tile.completed ? 'bg-sage-400 border-sage-400 text-charcoal' : 'border-stone-200 text-stone-400 hover:border-sage-400 hover:text-sage-500'}`}
         >
           <Check size={13} />
         </button>
         <button
           onClick={() => onDelete(tile.id)}
-          className="w-7 h-7 rounded-full border border-stone-200 text-stone-300 hover:border-blush-400 hover:text-blush-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+          className="w-7 h-7 rounded-full border border-stone-200 text-stone-400 hover:border-blush-400 hover:text-blush-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
         >
           <Trash2 size={12} />
         </button>

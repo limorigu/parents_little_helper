@@ -106,7 +106,7 @@ export function MilestoneRecord() {
                 <button
                   key={m.id}
                   onClick={() => setMilestoneId(m.id === milestoneId ? null : m.id)}
-                  className={`w-full text-left p-3 rounded-xl border text-sm transition-all ${m.id === milestoneId ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300 bg-white'}`}
+                  className={`w-full text-left p-3 rounded-xl border text-sm transition-all ${m.id === milestoneId ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300 bg-cream-50'}`}
                 >
                   <span className="font-medium text-stone-700">{m.title}</span>
                   <span className="ml-2 text-xs text-stone-400">{getCategoryLabel(m.category)} · Wk {m.week}</span>

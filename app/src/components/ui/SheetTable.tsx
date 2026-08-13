@@ -56,7 +56,7 @@ export function SheetTable({ columns, rows, onEditRow, onDeleteRow }: SheetTable
                     {onEditRow && (
                       <button
                         onClick={() => onEditRow(row.id)}
-                        className="text-stone-300 hover:text-periwinkle-500 transition-colors"
+                        className="text-stone-400 hover:text-periwinkle-500 transition-colors"
                         aria-label="Edit row"
                       >
                         <Pencil size={14} />
@@ -65,7 +65,7 @@ export function SheetTable({ columns, rows, onEditRow, onDeleteRow }: SheetTable
                     {onDeleteRow && (
                       <button
                         onClick={() => onDeleteRow(row.id)}
-                        className="text-stone-300 hover:text-blush-500 transition-colors"
+                        className="text-stone-400 hover:text-blush-500 transition-colors"
                         aria-label="Delete row"
                       >
                         <Trash2 size={14} />

@@ -51,7 +51,7 @@ export function StickerBook({ recordedMilestones }: StickerBookProps) {
               )}
               {m?.isOverachiever && (
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-marigold-400 border-2 border-stone-800 flex items-center justify-center">
-                  <Star size={9} className="text-white fill-white" />
+                  <Star size={9} className="text-charcoal fill-charcoal" />
                 </span>
               )}
             </button>

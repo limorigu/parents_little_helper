@@ -35,7 +35,11 @@ function AppShell() {
     <div className="flex min-h-screen bg-cream-100">
       <DarkModeToggle />
       <Navigation />
-      <main className="flex-1 md:ml-60">
+      {/* min-w-0 is load-bearing: a flex item defaults to min-width:auto, so the
+          wide tracker sheet tables (which scroll internally) would otherwise push
+          this <main> past the viewport and give the whole app a horizontal
+          scrollbar on mobile. */}
+      <main className="flex-1 min-w-0 md:ml-60">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/milestones" element={<Milestones />} />

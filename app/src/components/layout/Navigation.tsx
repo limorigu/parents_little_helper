@@ -19,8 +19,12 @@ export function Navigation() {
     <>
       {/* Sidebar – desktop */}
       <nav className="hidden md:flex flex-col w-60 shrink-0 bg-cream-50 border-r-4 border-stone-800 min-h-screen py-8 px-4 fixed left-0 top-0 bottom-0 z-40">
+        {/* See Dashboard.tsx — the wordmark is charcoal inside the PNG, so it needs
+            the always-light `cream` token behind it to survive Night Owl mode. */}
         <div className="px-1 mb-8">
-          <img src="/logo-horizontal.png" alt="Parents' Little Helper" className="h-10 w-auto" />
+          <span className="bg-cream rounded-xl px-2 py-1.5 inline-flex">
+            <img src="/logo-horizontal.png" alt="Parents' Little Helper" className="h-10 w-auto" />
+          </span>
         </div>
         <div className="flex flex-col gap-1.5">
           {NAV.map(({ to, label, icon: Icon }) => {

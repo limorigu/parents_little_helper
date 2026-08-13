@@ -282,7 +282,7 @@ export function Calendar() {
                 >
                   <span className={`text-sm leading-none ${isToday ? 'font-bold text-stone-800' : 'text-stone-600'}`}>{day.getDate()}</span>
                   {events.length > 0 && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${hasCelebration ? 'bg-blush-500' : hasSpecial ? 'bg-blush-300' : 'bg-periwinkle-300'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${hasCelebration ? 'bg-blush-500' : hasSpecial ? 'bg-blush-400' : 'bg-periwinkle-400'}`} />
                   )}
                 </button>
               )
@@ -293,8 +293,8 @@ export function Calendar() {
         {/* Dot legend */}
         <div className="flex items-center gap-4 px-1">
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blush-500" /><span className="text-xs text-stone-400">photo saved</span></div>
-          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blush-300" /><span className="text-xs text-stone-400">special day</span></div>
-          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-periwinkle-300" /><span className="text-xs text-stone-400">event</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blush-400" /><span className="text-xs text-stone-400">special day</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-periwinkle-400" /><span className="text-xs text-stone-400">event</span></div>
         </div>
 
         {/* Selected date events */}
