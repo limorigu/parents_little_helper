@@ -104,29 +104,46 @@
    Every utility class (bg-cream-100, text-stone-800, border-stone-800, etc.)
    compiles down to `var(--color-*)`, so re-declaring the same custom
    properties here — scoped to a `.dark` class on <html> — silently flips the
-   whole app's palette without touching a single component. Accent colors
-   (blush/sage/periwinkle/marigold/sand) are left as-is; their light -50/-100
-   chip backgrounds read fine as colorful pills against a dark page. */
+   whole app's palette without touching a single component.
+
+   Palette sourced from the "Dark Mode Palette" mockup: Deep Void (page bg),
+   Charcoal Surface (cards — same hex as the light theme's --color-charcoal,
+   so cards and the light-mode brand color line up), Warm Bone (primary
+   text/borders), and four "glow" accents (teal/gold/orange/coral) that
+   replace the light-mode originals they share a base hue with — sage-500,
+   marigold-400, sand-400 and blush-500 respectively. Every other accent
+   shade (the pastel -50/-100 chip backgrounds, etc.) is left as-is; they
+   still read fine as colorful pills against a dark page. */
 .dark {
-  --color-cream-50: #1b2427;
-  --color-cream-100: #10171a;
-  --color-cream-200: #2a3639;
-  --color-cream-300: #3a484c;
+  --color-cream-50: #264653;  /* Charcoal Surface — cards */
+  --color-cream-100: #122128; /* Deep Void — page background */
+  --color-cream-200: #2f5866;
+  --color-cream-300: #3c6b7a;
 
-  --color-stone-50: #232e32;
-  --color-stone-100: #2b373b;
-  --color-stone-200: #3c494e;
-  --color-stone-300: #56656b;
-  --color-stone-400: #93a5ac;
-  --color-stone-500: #b7c6cb;
-  --color-stone-600: #d3dee1;
-  --color-stone-700: #e6eef0;
-  --color-stone-800: #f5f9fa;
-  --color-stone-900: #ffffff;
+  --color-stone-50: #1e2f36;
+  --color-stone-100: #263a41;
+  --color-stone-200: #38505a;
+  --color-stone-300: #54666d;
+  --color-stone-400: #93a19f;
+  --color-stone-500: #b6c0ba;
+  --color-stone-600: #d2d8cf;
+  --color-stone-700: #e6e2d7;
+  --color-stone-800: #f2ebe2; /* Warm Bone — primary text & thick borders */
+  --color-stone-900: #fffaf3;
 
-  --shadow-brutal: 8px 8px 0px 0px #4a5a60;
-  --shadow-brutal-lg: 12px 12px 0px 0px #4a5a60;
-  --shadow-brutal-sm: 4px 4px 0px 0px #4a5a60;
+  --color-teal: #4abfb0;    /* Teal Glow */
+  --color-gold: #edce79;    /* Starlight Gold */
+  --color-sand: #f5b278;    /* Soft Peach */
+  --color-sienna: #ed856d;  /* Luminous Coral */
+
+  --color-sage-500: #4abfb0;    /* Teal Glow */
+  --color-marigold-400: #edce79; /* Starlight Gold */
+  --color-sand-400: #f5b278;     /* Soft Peach */
+  --color-blush-500: #ed856d;    /* Luminous Coral */
+
+  --shadow-brutal: 8px 8px 0px 0px #1c343e;
+  --shadow-brutal-lg: 12px 12px 0px 0px #1c343e;
+  --shadow-brutal-sm: 4px 4px 0px 0px #1c343e;
 }
 
 .dark ::selection {
