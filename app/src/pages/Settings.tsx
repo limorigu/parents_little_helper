@@ -14,6 +14,7 @@ import {
   syncAllData,
   importFromTabs,
   extractSpreadsheetId,
+  extractFolderId,
   listSheetTabs,
   createSheetTab,
   MissingDateError,
@@ -179,11 +180,12 @@ function GoogleSection() {
   const store = useAppStore()
   const {
     baby, googleClientId, googleFolderId, googleSheetId, googleLastSync, googleWriteSheetName,
-    setGoogleConfig, feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits,
+    googleParentFolderId, setGoogleConfig, feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits,
     addFeed, addSleep, addDiaper, addPlay,
   } = store
 
   const [clientIdInput, setClientIdInput] = useState(googleClientId)
+  const [parentFolderInput, setParentFolderInput] = useState(googleParentFolderId ?? '')
   const [status, setStatus] = useState<SyncStatus>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -212,12 +214,16 @@ function GoogleSection() {
 
   function err(msg: string) { setStatus('error'); setErrorMsg(msg) }
 
-  async function ensureDriveAndSheet(token: string): Promise<{ folderId: string; sheetId: string }> {
+  async function ensureDriveAndSheet(
+    token: string,
+    parentFolderIdOverride?: string | null,
+  ): Promise<{ folderId: string; sheetId: string }> {
     let folderId = googleFolderId
     let sheetId = googleSheetId
 
     if (!folderId || !sheetId) {
-      const { folderId: fi } = await setupDrive(token, baby.name)
+      const parent = parentFolderIdOverride !== undefined ? parentFolderIdOverride : googleParentFolderId
+      const { folderId: fi } = await setupDrive(token, baby.name, parent)
       folderId = fi
       const title = baby.name ? `${baby.name}'s Log` : "Baby's Log"
       sheetId = await findOrCreateSpreadsheet(token, folderId, title)
@@ -232,9 +238,12 @@ function GoogleSection() {
     setErrorMsg('')
     try {
       const token = await signIn(clientIdInput.trim())
-      setGoogleConfig({ clientId: clientIdInput.trim() })
+      // Persist where in the user's Drive their data folder should live —
+      // chosen once, before the folder tree is created below.
+      const parentFolderId = parentFolderInput.trim() ? extractFolderId(parentFolderInput.trim()) : null
+      setGoogleConfig({ clientId: clientIdInput.trim(), parentFolderId })
       // Immediately set up Drive folder + sheet on first connect
-      const { sheetId } = await ensureDriveAndSheet(token)
+      const { sheetId } = await ensureDriveAndSheet(token, parentFolderId)
       await syncAllData(token, sheetId, { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits })
       setGoogleConfig({ lastSync: new Date().toISOString() })
       setStatus('success')
@@ -473,8 +482,29 @@ function GoogleSection() {
             </ul>
           </div>
 
-          {/* Client ID field */}
+          {/* Step 1 — where in the user's own Drive this should live */}
           <div className="space-y-1">
+            <p className="text-xs font-black uppercase tracking-wide text-stone-400">Step 1 · Choose the location</p>
+            <Input
+              label="Drive folder (optional)"
+              value={parentFolderInput}
+              onChange={(e) => setParentFolderInput(e.target.value)}
+              placeholder="Paste a folder link, or leave blank for My Drive"
+            />
+            <p className="text-xs text-stone-400 leading-relaxed">
+              Everything the app writes — the spreadsheet and every photo/video —
+              stays entirely inside <strong>your own</strong> Google Drive, never on our
+              servers. By default we create a new "Parents' Little Helper" folder in
+              the root of My Drive. To nest it inside a folder you already have
+              (e.g. an existing family photos folder), open that folder in Drive,
+              copy its link, and paste it here first. This can only be set once,
+              before the folder is created.
+            </p>
+          </div>
+
+          {/* Step 2 — connect the account */}
+          <div className="space-y-1">
+            <p className="text-xs font-black uppercase tracking-wide text-stone-400">Step 2 · Connect your account</p>
             <Input
               label="Google OAuth Client ID"
               value={clientIdInput}
@@ -511,6 +541,16 @@ function GoogleSection() {
               <p className="text-sm text-sage-700 font-medium">Drive folder active</p>
               {fmtLastSync && (
                 <p className="text-xs text-sage-500">Last synced: {fmtLastSync}</p>
+              )}
+              {googleFolderId && (
+                <a
+                  href={`https://drive.google.com/drive/folders/${googleFolderId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-sage-600 underline"
+                >
+                  Open your data folder in Drive →
+                </a>
               )}
             </div>
             <Button

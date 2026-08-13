@@ -147,6 +147,10 @@ interface AppState {
   googleSheetId: string | null
   googleLastSync: string | null
   googleWriteSheetName: string | null
+  // User-chosen parent Drive folder the app's own folder gets nested inside.
+  // null = root of "My Drive". Set once, before the app folder is first
+  // created — this is how the user controls exactly where their data lives.
+  googleParentFolderId: string | null
 
   setBaby: (updates: Partial<BabyProfile>) => void
   setDarkMode: (on: boolean) => void
@@ -191,6 +195,7 @@ interface AppState {
     sheetId?: string | null
     lastSync?: string | null
     writeSheetName?: string | null
+    parentFolderId?: string | null
   }) => void
 }
 
@@ -200,6 +205,7 @@ const defaultGoogleConfig = {
   googleSheetId: null as string | null,
   googleLastSync: null as string | null,
   googleWriteSheetName: null as string | null,
+  googleParentFolderId: null as string | null,
 }
 
 const defaultBaby: BabyProfile = {
@@ -341,6 +347,7 @@ export const useAppStore = create<AppState>()(
           googleSheetId: cfg.sheetId !== undefined ? cfg.sheetId : s.googleSheetId,
           googleLastSync: cfg.lastSync !== undefined ? cfg.lastSync : s.googleLastSync,
           googleWriteSheetName: cfg.writeSheetName !== undefined ? cfg.writeSheetName : s.googleWriteSheetName,
+          googleParentFolderId: cfg.parentFolderId !== undefined ? cfg.parentFolderId : s.googleParentFolderId,
         })),
     }),
     { name: 'parents-little-helper' }

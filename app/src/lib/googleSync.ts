@@ -108,15 +108,28 @@ export async function findOrCreateFolder(
   return id
 }
 
-/** Set up (or reuse) the app's Drive folder tree. Returns both folder IDs. */
+/**
+ * Set up (or reuse) the app's Drive folder tree, entirely inside the user's
+ * own connected Google Drive. If `parentFolderId` is given, the app's folder
+ * is nested inside that existing folder instead of the root of "My Drive" —
+ * this is how a user keeps full control over exactly where their data (and
+ * uploaded media) lives. Returns both folder IDs.
+ */
 export async function setupDrive(
   token: string,
   babyName: string,
+  parentFolderId?: string | null,
 ): Promise<{ folderId: string; mediaFolderId: string }> {
   const label = babyName ? `Parents' Little Helper – ${babyName}` : "Parents' Little Helper"
-  const folderId = await findOrCreateFolder(token, label)
+  const folderId = await findOrCreateFolder(token, label, parentFolderId ?? undefined)
   const mediaFolderId = await findOrCreateFolder(token, 'Media', folderId)
   return { folderId, mediaFolderId }
+}
+
+/** Extract a Drive folder ID from a "Add to Drive" / folder share link, or return the value as-is. */
+export function extractFolderId(urlOrId: string): string {
+  const m = urlOrId.match(/\/folders\/([a-zA-Z0-9_-]+)/)
+  return m ? m[1] : urlOrId.trim()
 }
 
 /** Upload a base64 data URL to Drive. Returns { id, webViewLink }. */
