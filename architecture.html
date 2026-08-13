@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Parents' Little Helper — Architecture</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
   <style>
     /* ── Reset & base ─────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -19,16 +19,46 @@
     }
 
     /* ── Typography ───────────────────────────────────────── */
-    h1 { font-family: 'DM Serif Display', Georgia, serif; font-size: 1.75rem; font-weight: 400; color: #1a1815; letter-spacing: -0.02em; }
-    h2 { font-family: 'DM Serif Display', Georgia, serif; font-size: 1rem;    font-weight: 400; color: #1a1815; }
+    h1 { font-family: 'DM Serif Display', Georgia, serif; font-size: 1.8rem; font-weight: 400; color: #1a1815; letter-spacing: -0.02em; }
+    h2 { font-family: 'DM Serif Display', Georgia, serif; font-size: 1rem; font-weight: 400; color: #1a1815; }
+    h3 { font-family: 'DM Serif Display', Georgia, serif; font-size: 0.85rem; font-weight: 400; color: #1a1815; }
     p  { font-size: 0.78rem; color: #6b6259; line-height: 1.5; }
 
     /* ── Layout wrapper ───────────────────────────────────── */
-    .page { max-width: 900px; margin: 0 auto; }
+    .page { max-width: 980px; margin: 0 auto; }
 
-    .header { margin-bottom: 2rem; }
+    .header { margin-bottom: 0.5rem; }
     .header p { font-size: 0.85rem; color: #8c8277; margin-top: 0.25rem; }
     .subtitle-rule { width: 2.5rem; height: 2px; background: #f3a89a; border-radius: 999px; margin-top: 0.6rem; }
+
+    /* ── Layer spine (numbered vertical architecture layers) ── */
+    .layers { position: relative; margin-top: 2.25rem; }
+    .layers::before {
+      content: '';
+      position: absolute;
+      left: 17px; top: 8px; bottom: 8px;
+      width: 2px;
+      background: repeating-linear-gradient(to bottom, #d4cec3 0 6px, transparent 6px 12px);
+    }
+
+    .layer { position: relative; display: flex; gap: 1.1rem; margin-bottom: 1.4rem; }
+    .layer-badge {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: #fdf8f0;
+      border: 2px solid #1a1815;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Serif Display', serif;
+      font-size: 0.9rem;
+      color: #1a1815;
+      z-index: 2;
+    }
+    .layer-body { flex: 1; min-width: 0; }
+    .layer-heading { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.15rem; flex-wrap: wrap; }
+    .layer-heading h2 { font-size: 1.05rem; }
+    .layer-heading .layer-sub { font-size: 0.68rem; color: #a39c8f; text-transform: uppercase; letter-spacing: 0.06em; }
+    .layer-desc { font-size: 0.75rem; color: #8c8277; margin-bottom: 0.65rem; max-width: 640px; }
 
     /* ── Box primitives ───────────────────────────────────── */
     .box {
@@ -43,7 +73,7 @@
       letter-spacing: 0.07em;
       text-transform: uppercase;
       display: block;
-      margin-bottom: 0.3rem;
+      margin-bottom: 0.4rem;
     }
 
     /* colour tokens */
@@ -51,58 +81,21 @@
     .stone  { background: #f5f3ef; border-color: #d4cec3; }
     .blush  { background: #fef6f4; border-color: #f9cdc5; }
     .sage   { background: #f4f7f4; border-color: #c8d9c8; }
-    .peri   { background: #f3f4fb; border-color: #c7cee9; }
+    .peri   { background: #f2f2fc; border-color: #ccd0f0; }
     .gold   { background: #fef9ec; border-color: #fde08a; }
+    .sky    { background: #eef7fb; border-color: #bfe0ef; }
     .dark   { background: #2e2b27; border-color: #1a1815; color: #fdf8f0; }
     .dark p, .dark .box-label { color: #b5ada0; }
-    .dark h2 { color: #fdf8f0; }
-
-    /* ── Diagram sections ─────────────────────────────────── */
-    .diagram { display: flex; flex-direction: column; gap: 0.75rem; }
-
-    /* Browser shell */
-    .browser {
-      border-radius: 1.25rem;
-      border: 2px solid #d4cec3;
-      background: #faf9f7;
-      padding: 1.25rem;
-    }
-    .browser-bar {
-      display: flex; align-items: center; gap: 0.4rem;
-      margin-bottom: 1rem;
-    }
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dot-r { background: #f3a89a; }
-    .dot-y { background: #fde08a; }
-    .dot-g { background: #9dbb9d; }
-    .browser-url {
-      background: #f5f3ef; border-radius: 6px; padding: 0.2rem 0.75rem;
-      font-size: 0.7rem; color: #8c8277; flex: 1; margin-left: 0.25rem;
-    }
-    .browser-title {
-      font-family: 'DM Serif Display', serif;
-      font-size: 0.75rem; color: #8c8277;
-      margin-bottom: 0.75rem;
-    }
-
-    /* App shell inside browser */
-    .app-shell {
-      border-radius: 1rem;
-      border: 1.5px dashed #d4cec3;
-      background: white;
-      padding: 1rem;
-      margin-bottom: 0.75rem;
-    }
-    .app-title {
-      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.07em;
-      text-transform: uppercase; color: #8c8277; margin-bottom: 0.75rem;
-    }
+    .dark h2, .dark h3 { color: #fdf8f0; }
+    .dashed { border-style: dashed; }
 
     /* Row layout */
     .row { display: flex; gap: 0.65rem; flex-wrap: wrap; }
     .col { flex: 1; min-width: 0; }
     .col-2 { flex: 2; min-width: 0; }
     .col-3 { flex: 3; min-width: 0; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; }
 
     /* ── Pages grid ───────────────────────────────────────── */
     .pages-grid {
@@ -114,12 +107,12 @@
       background: #f5f3ef;
       border: 1px solid #e8e4dc;
       border-radius: 0.5rem;
-      padding: 0.3rem 0.5rem;
+      padding: 0.35rem 0.55rem;
       font-size: 0.68rem;
       color: #4a4540;
-      display: flex; align-items: center; gap: 0.3rem;
     }
-    .page-chip .icon { font-size: 0.75rem; }
+    .page-chip .icon { font-size: 0.75rem; margin-right: 0.3rem; }
+    .page-chip .sub { display: block; font-size: 0.6rem; color: #a39c8f; margin-top: 0.1rem; }
 
     /* ── Lib chips ────────────────────────────────────────── */
     .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
@@ -131,99 +124,82 @@
     }
     .chip-stone { background: #f5f3ef; border-color: #d4cec3; color: #4a4540; }
     .chip-sage  { background: #e5ede5; border-color: #c8d9c8; color: #3a5c3a; }
-    .chip-peri  { background: #e4e7f5; border-color: #c7cee9; color: #3f4c97; }
+    .chip-peri  { background: #e6e6fa; border-color: #ccd0f0; color: #45469b; }
     .chip-gold  { background: #fef0cc; border-color: #fde08a; color: #6b4a00; }
     .chip-blush { background: #fde9e4; border-color: #f9cdc5; color: #8b2a1a; }
+    .chip-sky   { background: #dcf0f8; border-color: #bfe0ef; color: #245a72; }
 
-    /* ── Arrow ────────────────────────────────────────────── */
-    .arrow-block {
-      display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
-      padding: 0.1rem 0;
-    }
-    .arrow-label { font-size: 0.65rem; color: #8c8277; }
-    .arrow-line  { width: 1px; height: 1.5rem; background: #d4cec3; }
-    .arrow-tip   { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid #d4cec3; }
-
-    /* ── localStorage ─────────────────────────────────────── */
-    .localstorage {
-      background: #f5f3ef; border: 1.5px solid #d4cec3;
-      border-radius: 0.75rem; padding: 0.75rem 1rem;
-    }
-    .ls-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-    .ls-key { font-size: 0.65rem; font-family: ui-monospace, monospace; background: #e8e4dc; padding: 0.15rem 0.4rem; border-radius: 4px; color: #4a4540; }
-    .ls-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem;
-    }
-    .ls-item {
-      font-size: 0.65rem; color: #6b6259;
-      background: white; border: 1px solid #e8e4dc;
-      border-radius: 0.4rem; padding: 0.2rem 0.4rem;
-    }
-    .ls-note { font-size: 0.65rem; color: #8c8277; margin-top: 0.4rem; }
-
-    /* ── External layer ───────────────────────────────────── */
-    .external-row {
-      display: flex; gap: 0.75rem; align-items: stretch;
-    }
-    .external-box {
-      flex: 1;
-      background: white; border: 1.5px solid #e8e4dc;
-      border-radius: 1rem; padding: 0.85rem 1rem;
-    }
-    .no-backend {
-      flex: 2;
-      background: #1a1815; border-radius: 1rem; padding: 0.85rem 1rem;
-      display: flex; flex-direction: column; justify-content: center; gap: 0.4rem;
-    }
-    .no-backend p { color: #b5ada0; font-size: 0.72rem; }
-    .no-backend h2 { color: #f5f3ef; font-size: 0.85rem; }
-    .no-tag {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      background: #2e2b27; border: 1px solid #4a4540;
-      border-radius: 999px; padding: 0.2rem 0.6rem;
-      font-size: 0.62rem; color: #b5ada0;
-    }
-    .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
-
-    /* ── Data flow arrows (between layers) ────────────────── */
-    .flow-arrow {
-      display: flex; align-items: center; justify-content: center;
-      gap: 0.4rem; padding: 0.3rem 0;
-    }
-    .flow-line {
-      height: 1px; flex: 1; background: #d4cec3;
-    }
-    .flow-text {
-      font-size: 0.65rem; color: #8c8277; white-space: nowrap;
-    }
-    .flow-arrow-down {
-      display: flex; flex-direction: column; align-items: center; gap: 0;
-    }
-
-    /* ── Zustand state section ────────────────────────────── */
-    .state-models {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.3rem; margin-top: 0.4rem;
-    }
+    /* ── model / state items ──────────────────────────────── */
+    .state-models { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.3rem; margin-top: 0.4rem; }
     .model-item {
       font-size: 0.65rem; color: #6b6259;
       background: #f5f3ef; border: 1px solid #e8e4dc;
       border-radius: 0.4rem; padding: 0.2rem 0.5rem;
     }
 
+    /* ── localStorage / cache boxes ───────────────────────── */
+    .localstorage {
+      background: #f5f3ef; border: 1.5px solid #d4cec3;
+      border-radius: 0.75rem; padding: 0.75rem 1rem; height: 100%;
+    }
+    .ls-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .ls-key { font-size: 0.63rem; font-family: ui-monospace, monospace; background: #e8e4dc; padding: 0.15rem 0.4rem; border-radius: 4px; color: #4a4540; }
+    .ls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem; }
+    .ls-item {
+      font-size: 0.63rem; color: #6b6259;
+      background: white; border: 1px solid #e8e4dc;
+      border-radius: 0.4rem; padding: 0.2rem 0.4rem;
+    }
+    .ls-note { font-size: 0.63rem; color: #8c8277; margin-top: 0.5rem; }
+
+    /* ── inline mini-flow (horizontal arrow chain) ────────── */
+    .mini-flow { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.55rem; }
+    .mini-node {
+      font-size: 0.63rem; color: #4a4540; background: white;
+      border: 1px solid #e8e4dc; border-radius: 0.4rem; padding: 0.25rem 0.5rem;
+      white-space: nowrap;
+    }
+    .mini-arrow { color: #c2bbad; font-size: 0.75rem; }
+
+    /* ── vertical connector between stacked boxes in a layer ── */
+    .stack { display: flex; flex-direction: column; }
+    .stack-arrow { display: flex; align-items: center; justify-content: center; padding: 0.25rem 0; gap: 0.4rem; }
+    .stack-arrow-line { width: 1px; height: 0.9rem; background: #d4cec3; }
+    .stack-arrow-text { font-size: 0.62rem; color: #a39c8f; }
+
+    /* ── external / optional tag ───────────────────────────── */
+    .optional-tag {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      background: #fff7ea; border: 1px solid #f0d799;
+      border-radius: 999px; padding: 0.15rem 0.55rem;
+      font-size: 0.6rem; font-weight: 600; color: #8a6416;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .no-tag {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      background: #2e2b27; border: 1px solid #4a4540;
+      border-radius: 999px; padding: 0.2rem 0.6rem;
+      font-size: 0.62rem; color: #b5ada0;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
+
     /* ── Legend ───────────────────────────────────────────── */
     .legend {
       display: flex; gap: 1.25rem; flex-wrap: wrap;
-      margin-top: 1.5rem; padding: 0.75rem 1rem;
+      margin-top: 0.5rem; padding: 0.85rem 1.1rem;
       background: white; border-radius: 0.75rem; border: 1px solid #e8e4dc;
     }
     .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; color: #6b6259; }
-    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid; }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid; flex-shrink: 0; }
 
-    @media (max-width: 600px) {
+    .footnote { font-size: 0.7rem; color: #a39c8f; margin-top: 0.9rem; text-align: center; }
+
+    @media (max-width: 720px) {
       .row { flex-direction: column; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
       .pages-grid { grid-template-columns: repeat(2, 1fr); }
       .ls-grid { grid-template-columns: repeat(2, 1fr); }
-      .external-row { flex-direction: column; }
+      .layer { gap: 0.75rem; }
     }
   </style>
 </head>
@@ -233,209 +209,286 @@
   <!-- Header -->
   <div class="header">
     <h1>Parents' Little Helper</h1>
-    <p>Application architecture · August 2026</p>
+    <p>Application architecture · local-first React PWA · August 2026</p>
     <div class="subtitle-rule"></div>
   </div>
 
-  <div class="diagram">
+  <div class="layers">
 
-    <!-- ══ BROWSER SHELL ══════════════════════════════════════════════ -->
-    <div class="browser">
-      <div class="browser-bar">
-        <div class="dot dot-r"></div>
-        <div class="dot dot-y"></div>
-        <div class="dot dot-g"></div>
-        <div class="browser-url">localhost:5173 &nbsp;·&nbsp; or static host</div>
-      </div>
-      <p class="browser-title">User's Browser &nbsp;—&nbsp; everything runs here, nothing leaves</p>
+    <!-- ══ LAYER 1 — Client runtime / shell ═══════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">1</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>Client Runtime</h2><span class="layer-sub">where the app lives</span></div>
+        <p class="layer-desc">Ships as a static bundle (Vite build). Runs identically in a desktop/mobile browser tab or, once "Added to Home Screen" on iOS, as a standalone installed app — same code, no server render.</p>
 
-      <!-- React App shell -->
-      <div class="app-shell">
-        <div class="app-title">React Application &nbsp;·&nbsp; Vite 6 &nbsp;·&nbsp; React 19 &nbsp;·&nbsp; TypeScript &nbsp;·&nbsp; Oxlint</div>
-
-        <div class="row" style="margin-bottom: 0.65rem;">
-
-          <!-- Routing -->
-          <div class="col" style="max-width: 160px;">
-            <div class="box peri">
-              <span class="box-label" style="color: #3f4c97;">Routing</span>
-              <h2 style="color: #3f4c97; font-size:0.8rem;">React Router v6</h2>
-              <p style="margin-top:0.25rem;">Client-side only.<br/>No server renders.</p>
-            </div>
-          </div>
-
-          <!-- Pages -->
-          <div class="col-3">
-            <div class="box stone">
-              <span class="box-label" style="color: #4a4540;">Pages  (9)</span>
-              <div class="pages-grid">
-                <div class="page-chip"><span class="icon">🏠</span> Dashboard</div>
-                <div class="page-chip"><span class="icon">📅</span> Calendar</div>
-                <div class="page-chip"><span class="icon">⭐</span> Milestones</div>
-                <div class="page-chip"><span class="icon">📷</span> Milestone Recorder</div>
-                <div class="page-chip"><span class="icon">📋</span> Daily Plan</div>
-                <div class="page-chip"><span class="icon">🍼</span> Feed &amp; Sleep Tracker</div>
-                <div class="page-chip"><span class="icon">📈</span> Growth Chart</div>
-                <div class="page-chip"><span class="icon">🩺</span> Doctor Prep</div>
-                <div class="page-chip"><span class="icon">⚙️</span> Settings</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Middle row: State + UI libs + Data libs -->
-        <div class="row" style="margin-bottom: 0.65rem;">
-
-          <!-- Zustand store -->
+        <div class="row">
           <div class="col-2">
-            <div class="box sage">
-              <span class="box-label" style="color: #3a5c3a;">State &nbsp;·&nbsp; Zustand 5 + persist middleware</span>
-              <div class="state-models">
-                <div class="model-item">BabyProfile</div>
-                <div class="model-item">RecordedMilestone</div>
-                <div class="model-item">FeedEntry</div>
-                <div class="model-item">SleepEntry</div>
-                <div class="model-item">GrowthEntry</div>
-                <div class="model-item">ActivityTile / DailyPlan</div>
-                <div class="model-item">DoctorVisit</div>
-                <div class="model-item">CelebrationPhoto</div>
-              </div>
-              <p style="margin-top:0.4rem; font-size:0.65rem; color:#4d774d;">
-                18 actions &nbsp;·&nbsp; auto-persisted to localStorage on every write
-              </p>
-            </div>
-          </div>
-
-          <!-- Right column: UI + libs -->
-          <div class="col" style="display:flex; flex-direction:column; gap:0.5rem;">
-
-            <!-- UI components -->
-            <div class="box blush">
-              <span class="box-label" style="color: #8b2a1a;">Layout &amp; UI Components</span>
+            <div class="box stone">
+              <span class="box-label" style="color:#4a4540;">Browser tab</span>
               <div class="chips">
-                <span class="chip chip-blush">Navigation</span>
-                <span class="chip chip-blush">PageShell</span>
-                <span class="chip chip-blush">Card</span>
-                <span class="chip chip-blush">Button</span>
-                <span class="chip chip-blush">Modal</span>
-                <span class="chip chip-blush">Badge</span>
-                <span class="chip chip-blush">Input / Textarea</span>
-                <span class="chip chip-blush">EmptyState</span>
+                <span class="chip chip-stone">Safari / Chrome / any modern browser</span>
+                <span class="chip chip-stone">localhost:5173 in dev · static host in prod</span>
               </div>
             </div>
-
-            <!-- Static data libs -->
-            <div class="box cream">
-              <span class="box-label" style="color: #6b4a00;">Static Data Libraries</span>
+          </div>
+          <div class="col-2">
+            <div class="box sky">
+              <span class="box-label" style="color:#245a72;">Installed PWA (iOS "Add to Home Screen")</span>
               <div class="chips">
-                <span class="chip chip-stone">milestones.ts — 22 milestone definitions</span>
-                <span class="chip chip-stone">activities.ts — activity bank + DnD plan generator</span>
-                <span class="chip chip-stone">utils.ts — date helpers, uid, normaliseQuotes</span>
+                <span class="chip chip-sky">vite-plugin-pwa — manifest + service worker</span>
+                <span class="chip chip-sky">Full-screen, offline-capable, app icon on home screen</span>
               </div>
             </div>
-
           </div>
         </div>
-
-        <!-- Third-party library row -->
-        <div class="box stone" style="margin-bottom: 0.1rem;">
-          <span class="box-label" style="color: #4a4540;">Third-party Libraries (all bundled by Vite · zero runtime network calls)</span>
-          <div class="chips">
-            <span class="chip chip-peri">Tailwind CSS v4</span>
-            <span class="chip chip-peri">Lucide React — icons</span>
-            <span class="chip chip-peri">Framer Motion — animations</span>
-            <span class="chip chip-gold">Recharts — growth chart line graph</span>
-            <span class="chip chip-gold">@dnd-kit — drag-and-drop daily plan</span>
-            <span class="chip chip-sage">date-fns — all date arithmetic</span>
-            <span class="chip chip-sage">react-router-dom v7</span>
-          </div>
-        </div>
-
-      </div><!-- /app-shell -->
-
-      <!-- Arrow: Zustand → localStorage -->
-      <div class="flow-arrow">
-        <div class="flow-line"></div>
-        <div class="flow-arrow-down">
-          <span class="flow-text">Zustand persist middleware — writes JSON on every state change &nbsp;·&nbsp; rehydrates on page load</span>
-          <svg width="10" height="8" viewBox="0 0 10 8" style="margin-top:2px"><polygon points="5,8 0,0 10,0" fill="#d4cec3"/></svg>
-        </div>
-        <div class="flow-line"></div>
       </div>
-
-      <!-- localStorage -->
-      <div class="localstorage">
-        <div class="ls-header">
-          <h2 style="font-size:0.8rem;">🗄️ &nbsp;Browser localStorage</h2>
-          <span class="ls-key">key: "parents-little-helper"</span>
-        </div>
-        <div class="ls-grid">
-          <div class="ls-item">👶 baby profile</div>
-          <div class="ls-item">⭐ recorded milestones</div>
-          <div class="ls-item">🍼 feed entries</div>
-          <div class="ls-item">🌙 sleep entries</div>
-          <div class="ls-item">📈 growth measurements</div>
-          <div class="ls-item">📋 daily plans</div>
-          <div class="ls-item">🩺 doctor visits</div>
-          <div class="ls-item">🎂 celebration photos</div>
-          <div class="ls-item">🌿 local activities</div>
-        </div>
-        <p class="ls-note">Stored as a single JSON blob &nbsp;·&nbsp; ≈ 5 MB practical limit per browser &nbsp;·&nbsp; cleared if user clears browser data</p>
-      </div>
-
-    </div><!-- /browser -->
-
-    <!-- Arrow: Browser → External -->
-    <div class="flow-arrow">
-      <div class="flow-line"></div>
-      <div class="flow-arrow-down">
-        <span class="flow-text">HTTPS &nbsp;·&nbsp; one request on page load only</span>
-        <svg width="10" height="8" viewBox="0 0 10 8" style="margin-top:2px"><polygon points="5,8 0,0 10,0" fill="#d4cec3"/></svg>
-      </div>
-      <div class="flow-line"></div>
     </div>
 
-    <!-- External row -->
-    <div class="external-row">
+    <!-- ══ LAYER 2 — Presentation ═════════════════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">2</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>Presentation</h2><span class="layer-sub">React 19 · React Router v7 · TypeScript</span></div>
+        <p class="layer-desc">Client-side routing only. Until the baby profile onboarding is complete, every route resolves to the Settings onboarding form; afterwards the sidebar/bottom-nav + 9 pages render normally.</p>
 
-      <!-- Google Fonts -->
-      <div class="external-box">
-        <span class="box-label" style="color:#6b6259;">External CDN (only external dependency)</span>
-        <h2 style="font-size:0.85rem; margin-bottom:0.25rem;">Google Fonts</h2>
-        <div class="chips">
-          <span class="chip chip-stone">DM Serif Display</span>
-          <span class="chip chip-stone">DM Sans</span>
+        <div class="row">
+          <div class="col" style="max-width:170px;">
+            <div class="box peri">
+              <span class="box-label" style="color:#45469b;">Routing</span>
+              <h3>React Router v7</h3>
+              <p style="margin-top:0.3rem;">Onboarding gate → Navigation shell → page routes.</p>
+            </div>
+          </div>
+
+          <div class="col-3">
+            <div class="box stone">
+              <span class="box-label" style="color:#4a4540;">Pages (9)</span>
+              <div class="pages-grid">
+                <div class="page-chip"><span class="icon">🏠</span>Dashboard</div>
+                <div class="page-chip"><span class="icon">⭐</span>Milestones</div>
+                <div class="page-chip"><span class="icon">📷</span>Record Milestone</div>
+                <div class="page-chip"><span class="icon">📋</span>Daily Plan</div>
+                <div class="page-chip"><span class="icon">🍼</span>Tracker<span class="sub">Feed · Sleep · Diaper · Play · Insights</span></div>
+                <div class="page-chip"><span class="icon">📈</span>Growth Chart</div>
+                <div class="page-chip"><span class="icon">📅</span>Calendar</div>
+                <div class="page-chip"><span class="icon">🩺</span>Doctor Prep</div>
+                <div class="page-chip"><span class="icon">⚙️</span>Settings<span class="sub">profile + onboarding + Google sync</span></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <p style="margin-top:0.4rem;">Loaded once at page start. Not used by app logic.</p>
       </div>
+    </div>
 
-      <!-- No backend -->
-      <div class="no-backend">
-        <h2 style="font-size:0.9rem; letter-spacing:-0.01em;">No backend — by design</h2>
-        <div class="tags">
-          <span class="no-tag">✗ No API server</span>
-          <span class="no-tag">✗ No database</span>
-          <span class="no-tag">✗ No authentication</span>
-          <span class="no-tag">✗ No network calls</span>
-          <span class="no-tag">✗ No telemetry</span>
-          <span class="no-tag">✗ No cloud sync</span>
+    <!-- ══ LAYER 3 — Components ═══════════════════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">3</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>Components</h2><span class="layer-sub">shared design system + feature UI</span></div>
+
+        <div class="row">
+          <div class="col">
+            <div class="box blush">
+              <span class="box-label" style="color:#8b2a1a;">ui/ — design-system primitives</span>
+              <div class="chips">
+                <span class="chip chip-blush">Button</span>
+                <span class="chip chip-blush">Card</span>
+                <span class="chip chip-blush">Badge</span>
+                <span class="chip chip-blush">Input</span>
+                <span class="chip chip-blush">Modal</span>
+                <span class="chip chip-blush">EmptyState</span>
+                <span class="chip chip-blush">SheetTable</span>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="box blush">
+              <span class="box-label" style="color:#8b2a1a;">layout/</span>
+              <div class="chips">
+                <span class="chip chip-blush">Navigation — sidebar / bottom tabs</span>
+                <span class="chip chip-blush">PageShell — sticky header wrapper</span>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="box blush">
+              <span class="box-label" style="color:#8b2a1a;">tracker/ — feature-specific</span>
+              <div class="chips">
+                <span class="chip chip-blush">TrackerInsights — heatmaps, wake-window &amp; sequence charts, recommendations</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <p style="margin-top:0.5rem; font-size:0.7rem;">All data stays on-device. Clearing browser storage deletes everything permanently. Cloud backup is planned for Phase 2.</p>
       </div>
+    </div>
 
+    <!-- ══ LAYER 4 — Application logic ════════════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">4</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>Application Logic</h2><span class="layer-sub">src/lib — pure functions, no side effects (except Google sync)</span></div>
+
+        <div class="row">
+          <div class="col-2">
+            <div class="box cream">
+              <span class="box-label" style="color:#6b4a00;">Static data &amp; domain logic</span>
+              <div class="chips">
+                <span class="chip chip-stone">milestones.ts — 22 milestone defs + lookups</span>
+                <span class="chip chip-stone">activities.ts — activity bank + daily-plan generator</span>
+                <span class="chip chip-stone">insights.ts — wake windows, sequences, heatmaps, age-band recommendations</span>
+                <span class="chip chip-stone">utils.ts — age/date helpers, WHO growth medians, uid()</span>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="box gold">
+              <span class="box-label" style="color:#6b4a00;">Google integration <span class="optional-tag">optional</span></span>
+              <div class="chips">
+                <span class="chip chip-gold">googleApi.ts — OAuth token flow</span>
+                <span class="chip chip-gold">googleSync.ts — Sheets/Drive read &amp; write</span>
+              </div>
+              <p style="margin-top:0.4rem; font-size:0.63rem;">Only code in the app that talks to the network beyond loading fonts. See Layer 7.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ LAYER 5 — State ═══════════════════════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">5</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>State</h2><span class="layer-sub">Zustand 5 + persist middleware</span></div>
+        <p class="layer-desc">Single store, ~28 actions, is the one source of truth every page/component reads and writes through — nothing talks to storage directly.</p>
+
+        <div class="box sage">
+          <span class="box-label" style="color:#3a5c3a;">useAppStore</span>
+          <div class="state-models">
+            <div class="model-item">baby (profile + onboarding flag)</div>
+            <div class="model-item">recordedMilestones</div>
+            <div class="model-item">feeds · sleep · diaper · play</div>
+            <div class="model-item">growth</div>
+            <div class="model-item">plans (daily activity tiles)</div>
+            <div class="model-item">doctorVisits</div>
+            <div class="model-item">celebrations (photos)</div>
+            <div class="model-item">localActivities</div>
+            <div class="model-item">googleClientId · googleFolderId · googleSheetId · googleLastSync</div>
+          </div>
+          <p style="margin-top:0.45rem; font-size:0.65rem; color:#4d774d;">28 actions · every write auto-persists via the middleware below</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ LAYER 6 — Persistence ══════════════════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">6</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>Persistence</h2><span class="layer-sub">on-device, no server round-trip</span></div>
+
+        <div class="row">
+          <div class="col-2">
+            <div class="localstorage">
+              <div class="ls-header">
+                <h3>🗄️ Browser localStorage — source of truth</h3>
+                <span class="ls-key">key: "parents-little-helper"</span>
+              </div>
+              <div class="ls-grid">
+                <div class="ls-item">👶 baby profile</div>
+                <div class="ls-item">⭐ milestones</div>
+                <div class="ls-item">🍼 feed entries</div>
+                <div class="ls-item">🌙 sleep entries</div>
+                <div class="ls-item">🧷 diaper entries</div>
+                <div class="ls-item">🧸 play entries</div>
+                <div class="ls-item">📈 growth</div>
+                <div class="ls-item">📋 daily plans</div>
+                <div class="ls-item">🩺 doctor visits</div>
+                <div class="ls-item">🎂 celebrations</div>
+                <div class="ls-item">🔗 Google sync config</div>
+              </div>
+              <p class="ls-note">Single JSON blob · rehydrated into the Zustand store on load · gone if the user clears browser data</p>
+            </div>
+          </div>
+          <div class="col">
+            <div class="box sky" style="height:100%;">
+              <span class="box-label" style="color:#245a72;">⚙️ Service worker cache</span>
+              <p style="font-size:0.68rem;">Workbox-generated by vite-plugin-pwa: precaches the app shell (JS/CSS/HTML/icons) so the installed PWA opens and runs <strong>offline</strong>.</p>
+              <p style="margin-top:0.4rem; font-size:0.63rem; color:#8c8277;">Caches code, not your data — your data lives in localStorage above.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ LAYER 7 — External (optional) ══════════════════════════════ -->
+    <div class="layer">
+      <div class="layer-badge">7</div>
+      <div class="layer-body">
+        <div class="layer-heading"><h2>External Integrations</h2><span class="layer-sub">all optional · user-initiated · no app-owned server</span></div>
+        <p class="layer-desc">There is no backend written or run by this app. The only network calls are (a) loading two Google Fonts once, and (b) an opt-in mirror of your data to your own Google account.</p>
+
+        <div class="row">
+          <div class="col">
+            <div class="box stone">
+              <span class="box-label" style="color:#6b6259;">Google Fonts CDN</span>
+              <div class="chips">
+                <span class="chip chip-stone">Nunito</span>
+                <span class="chip chip-stone">Outfit</span>
+              </div>
+              <p style="margin-top:0.4rem;">Loaded once at startup. Purely presentational, unrelated to app data.</p>
+            </div>
+          </div>
+
+          <div class="col-2">
+            <div class="box gold">
+              <span class="box-label" style="color:#6b4a00;">Google Sheets / Drive sync <span class="optional-tag">off by default</span></span>
+              <p style="margin-bottom:0.3rem;">Triggered only from Settings. Google Identity Services opens an OAuth popup; the access token is kept in memory only (never persisted) and expires after ~1 hour.</p>
+              <div class="mini-flow">
+                <span class="mini-node">Settings page</span>
+                <span class="mini-arrow">→</span>
+                <span class="mini-node">Google OAuth popup (GIS)</span>
+                <span class="mini-arrow">→</span>
+                <span class="mini-node">Drive API v3 — folder + media</span>
+              </div>
+              <div class="mini-flow">
+                <span class="mini-node">Zustand store</span>
+                <span class="mini-arrow">⇄</span>
+                <span class="mini-node">Sheets API v4 — 4 tabs: Activity Log · Milestones · Growth · Doctor Visits</span>
+              </div>
+              <p style="margin-top:0.5rem; font-size:0.63rem;">Full replace-sync on demand, plus auto-append of new entries as you log them. Import can also read the sheet back in and reparse it into the store. localStorage stays authoritative — sync failures are swallowed silently and never block the app.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="dark box" style="margin-top:0.65rem;">
+          <h3 style="font-size:0.9rem; margin-bottom:0.5rem;">No backend, by design</h3>
+          <div class="tags">
+            <span class="no-tag">✗ No API server</span>
+            <span class="no-tag">✗ No database</span>
+            <span class="no-tag">✗ No app-managed auth</span>
+            <span class="no-tag">✗ No telemetry</span>
+            <span class="no-tag">✓ Optional, user-owned Google Sheets mirror</span>
+            <span class="no-tag">✓ Installable, offline-first PWA</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Legend -->
     <div class="legend">
-      <div class="legend-item"><div class="legend-swatch" style="background:#f4f7f4; border-color:#c8d9c8;"></div> State / data layer</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#f4f7f4; border-color:#c8d9c8;"></div> State</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#fef6f4; border-color:#f9cdc5;"></div> UI components</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#f3f4fb; border-color:#c7cee9;"></div> Routing</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#fef9ec; border-color:#fde08a;"></div> Third-party libs</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#f5f3ef; border-color:#d4cec3;"></div> Pages / browser storage</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#f2f2fc; border-color:#ccd0f0;"></div> Routing</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#fef9ec; border-color:#fde08a;"></div> Domain logic / optional sync</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#eef7fb; border-color:#bfe0ef;"></div> PWA / offline</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#f5f3ef; border-color:#d4cec3;"></div> Pages / persistence</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#1a1815; border-color:#4a4540;"></div> No backend</div>
     </div>
 
-  </div><!-- /diagram -->
+  </div><!-- /layers -->
+
+  <p class="footnote">Layers 1 → 7 read top-to-bottom as the app's actual data path, from the installed shell down to the one optional external system.</p>
+
 </div>
 </body>
 </html>
