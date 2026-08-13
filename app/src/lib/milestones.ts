@@ -65,3 +65,27 @@ export function getCategoryLabel(cat: string): string {
   }
   return map[cat] ?? cat
 }
+
+// Solid sticker-face background + emoji per category, for the "digital sticker
+// book" collectible view of recorded milestones (see StickerBook.tsx).
+export function getCategoryStickerBg(cat: string): string {
+  const map: Record<string, string> = {
+    motor: 'bg-sage-400',
+    social: 'bg-blush-400',
+    language: 'bg-periwinkle-400',
+    cognitive: 'bg-marigold-400',
+    sensory: 'bg-sand-400',
+  }
+  return map[cat] ?? 'bg-stone-300'
+}
+
+export function getCategoryIcon(cat: string): string {
+  const map: Record<string, string> = {
+    motor: '🏃',
+    social: '😊',
+    language: '💬',
+    cognitive: '🧠',
+    sensory: '👀',
+  }
+  return map[cat] ?? '⭐'
+}

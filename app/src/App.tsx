@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from './store/useAppStore'
 import { useGoogleAutoSync } from './hooks/useGoogleAutoSync'
 import { Navigation } from './components/layout/Navigation'
+import { DarkModeToggle } from './components/ui/DarkModeToggle'
 import { Dashboard } from './pages/Dashboard'
 import { Milestones } from './pages/Milestones'
 import { MilestoneRecord } from './pages/MilestoneRecord'
@@ -13,15 +15,25 @@ import { DoctorPrep } from './pages/DoctorPrep'
 import { Settings } from './pages/Settings'
 
 function AppShell() {
-  const { baby } = useAppStore()
+  const { baby, darkMode } = useAppStore()
   useGoogleAutoSync()
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+  }, [darkMode])
+
   if (!baby.onboardingComplete) {
-    return <Settings />
+    return (
+      <>
+        <DarkModeToggle />
+        <Settings />
+      </>
+    )
   }
 
   return (
     <div className="flex min-h-screen bg-cream-100">
+      <DarkModeToggle />
       <Navigation />
       <main className="flex-1 md:ml-60">
         <Routes>

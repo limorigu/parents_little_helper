@@ -2,6 +2,8 @@
 
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ── Keyframes for playful motion ─────────────────────────────────────────── */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
@@ -98,6 +100,40 @@
   --animate-wiggle: wiggle 3s ease-in-out infinite;
 }
 
+/* ── Zen Mode / Night Owl dark theme ──────────────────────────────────────
+   Every utility class (bg-cream-100, text-stone-800, border-stone-800, etc.)
+   compiles down to `var(--color-*)`, so re-declaring the same custom
+   properties here — scoped to a `.dark` class on <html> — silently flips the
+   whole app's palette without touching a single component. Accent colors
+   (blush/sage/periwinkle/marigold/sand) are left as-is; their light -50/-100
+   chip backgrounds read fine as colorful pills against a dark page. */
+.dark {
+  --color-cream-50: #1b2427;
+  --color-cream-100: #10171a;
+  --color-cream-200: #2a3639;
+  --color-cream-300: #3a484c;
+
+  --color-stone-50: #232e32;
+  --color-stone-100: #2b373b;
+  --color-stone-200: #3c494e;
+  --color-stone-300: #56656b;
+  --color-stone-400: #93a5ac;
+  --color-stone-500: #b7c6cb;
+  --color-stone-600: #d3dee1;
+  --color-stone-700: #e6eef0;
+  --color-stone-800: #f5f9fa;
+  --color-stone-900: #ffffff;
+
+  --shadow-brutal: 8px 8px 0px 0px #4a5a60;
+  --shadow-brutal-lg: 12px 12px 0px 0px #4a5a60;
+  --shadow-brutal-sm: 4px 4px 0px 0px #4a5a60;
+}
+
+.dark ::selection {
+  background-color: var(--color-marigold-500);
+  color: var(--color-stone-900);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -140,4 +176,28 @@ body {
   background: var(--color-sage-500);
   border-left: 3px solid var(--color-stone-800);
   border-bottom: 3px solid var(--color-stone-800);
+}
+
+/* ── "Ace the checkup" printable brief ────────────────────────────────────
+   VisitBrief.tsx renders its content inside a `.print-brief` wrapper. When
+   the user hits "Print / Save as PDF" (window.print()), these rules hide
+   every other on-screen element (nav sidebar, page header, modal chrome)
+   so only the brief itself ends up on the printed page. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-brief,
+  .print-brief * {
+    visibility: visible;
+  }
+  .print-brief {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    border: none !important;
+    box-shadow: none !important;
+  }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2, Moon } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -141,6 +141,33 @@ function ProfileSection({
         </p>
       )}
     </div>
+  )
+}
+
+// ── Appearance section ────────────────────────────────────────────────────────
+
+function AppearanceSection() {
+  const { darkMode, setDarkMode } = useAppStore()
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-1">
+        <Moon size={18} className="text-periwinkle-500 shrink-0" />
+        <div>
+          <h2 className="font-display text-base text-stone-700">Appearance</h2>
+          <p className="text-xs text-stone-400">Night Owl mode — dark, high-contrast, easy on the eyes at 3am</p>
+        </div>
+      </div>
+      <label className="flex items-center justify-between gap-3 cursor-pointer mt-3">
+        <span className="text-sm text-stone-600">Night Owl mode</span>
+        <div
+          onClick={() => setDarkMode(!darkMode)}
+          className={`w-10 h-6 rounded-full flex items-center transition-all shrink-0 ${darkMode ? 'bg-stone-800' : 'bg-stone-200'}`}
+        >
+          <span className={`w-4 h-4 bg-white rounded-full shadow-sm ml-1 transition-all ${darkMode ? 'translate-x-4' : ''}`} />
+        </div>
+      </label>
+    </Card>
   )
 }
 
@@ -734,6 +761,7 @@ export function Settings() {
         <PageShell title="Settings" subtitle="Profile, preferences & sync">
           <div className="space-y-4">
             <ProfileSection form={form} set={set} onSave={save} saved={saved} />
+            <AppearanceSection />
             <GoogleSection />
           </div>
         </PageShell>

@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageShell } from '../components/layout/PageShell'
+import { StickerBook } from '../components/milestones/StickerBook'
 import type { MilestoneCategory } from '../store/useAppStore'
 
 const CATEGORY_FILTERS: Array<{ value: MilestoneCategory | 'all' | 'overachiever'; label: string }> = [
@@ -152,6 +153,9 @@ export function Milestones() {
           {showUpcoming ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
           {showUpcoming ? 'Hide upcoming milestones' : 'Show upcoming milestones (next 4 weeks)'}
         </button>
+
+        {/* Digital sticker book */}
+        <StickerBook recordedMilestones={recordedMilestones} />
 
         {/* Recorded milestones timeline */}
         {recordedMilestones.length > 0 && (

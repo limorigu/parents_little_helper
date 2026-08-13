@@ -57,6 +57,30 @@ export function today(): string {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
+// Short, friendly "how long ago" label for quick-log recent-activity chips.
+export function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  const remMins = mins % 60
+  if (hours < 24) return remMins > 0 ? `${hours}h ${remMins}m ago` : `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'Yesterday'
+  return `${days}d ago`
+}
+
+// Elapsed duration label for an in-progress session (active sleep/play entry).
+export function elapsedSince(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const mins = Math.max(0, Math.floor(diffMs / 60000))
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  const remMins = mins % 60
+  return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`
+}
+
 // Normalise curly/smart quotes to straight ASCII equivalents.
 // Applies to any string coming from user input, clipboard paste, or static data,
 // so apostrophes never cause downstream parse or display issues.

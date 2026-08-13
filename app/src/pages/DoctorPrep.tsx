@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, FileText } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { getBabyAgeWeeks, uid, formatDate, normaliseQuotes } from '../lib/utils'
 import { Card } from '../components/ui/Card'
@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import { Input, Textarea } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PageShell } from '../components/layout/PageShell'
+import { VisitBrief } from '../components/doctor/VisitBrief'
 
 function getAutoQuestions(weeks: number): string[] {
   const base = [
@@ -24,10 +25,11 @@ function getAutoQuestions(weeks: number): string[] {
 }
 
 export function DoctorPrep() {
-  const { baby, doctorVisits, addDoctorVisit, updateDoctorVisit } = useAppStore()
+  const { baby, doctorVisits, addDoctorVisit, updateDoctorVisit, growth, recordedMilestones } = useAppStore()
   const weeks = getBabyAgeWeeks(baby.birthDate)
   const [addModal, setAddModal] = useState(false)
   const [selectedVisit, setSelectedVisit] = useState<string | null>(null)
+  const [briefOpen, setBriefOpen] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [newType, setNewType] = useState('')
   const [newNotes, setNewNotes] = useState('')
@@ -128,9 +130,14 @@ export function DoctorPrep() {
               <Button variant="secondary" size="sm" onClick={() => addCustomQuestion(activeVisit.id)}>Add</Button>
             </div>
 
-            <Button fullWidth onClick={() => markComplete(activeVisit.id)}>
-              <CheckCircle2 size={15} /> Mark visit as done
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" fullWidth onClick={() => setBriefOpen(true)}>
+                <FileText size={15} /> Generate brief
+              </Button>
+              <Button fullWidth onClick={() => markComplete(activeVisit.id)}>
+                <CheckCircle2 size={15} /> Mark visit as done
+              </Button>
+            </div>
           </div>
         )}
 
@@ -174,6 +181,18 @@ export function DoctorPrep() {
           <Button fullWidth onClick={createVisit} disabled={!newDate}>Create visit</Button>
         </div>
       </Modal>
+
+      {activeVisit && (
+        <Modal open={briefOpen} onClose={() => setBriefOpen(false)} title="Visit brief">
+          <VisitBrief
+            baby={baby}
+            visit={activeVisit}
+            weeks={weeks}
+            growth={growth}
+            recordedMilestones={recordedMilestones}
+          />
+        </Modal>
+      )}
     </PageShell>
   )
 }

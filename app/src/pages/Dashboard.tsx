@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Star, Heart, TrendingUp, ListChecks, ChevronRight, Camera } from 'lucide-react'
+import { Star, TrendingUp, ListChecks, ChevronRight, Camera } from 'lucide-react'
 import { format, parseISO, addDays, addMonths } from 'date-fns'
 import { useAppStore } from '../store/useAppStore'
 import { getBabyAgeLabel, getBabyAgeWeeks, today, formatDate } from '../lib/utils'
@@ -7,6 +7,7 @@ import { getMilestonesForWeek } from '../lib/milestones'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { PageShell } from '../components/layout/PageShell'
+import { QuickLog } from '../components/dashboard/QuickLog'
 
 function getTodaySpecialEvent(birthDate: string): { title: string } | null {
   if (!birthDate) return null
@@ -74,6 +75,9 @@ export function Dashboard() {
             </Card>
           </Link>
         )}
+
+        {/* Quick log — track it in a tap */}
+        <QuickLog />
 
         {/* Tip of the day */}
         <Card className="bg-gradient-to-br from-cream-200 to-cream-100 border-cream-300">
@@ -151,19 +155,8 @@ export function Dashboard() {
 
         {/* Quick actions */}
         <div>
-          <h2 className="font-display text-lg text-stone-700 mb-3">Quick log</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Link to="/tracker">
-              <Card hover padding="sm" className="flex items-center gap-3">
-                <span className="w-9 h-9 rounded-xl bg-blush-100 flex items-center justify-center text-blush-500">
-                  <Heart size={17} />
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-stone-700">Log feed</p>
-                  <p className="text-xs text-stone-400">or sleep</p>
-                </div>
-              </Card>
-            </Link>
+          <h2 className="font-display text-lg text-stone-700 mb-3">More shortcuts</h2>
+          <div className="grid grid-cols-3 gap-3">
             <Link to="/milestones/record">
               <Card hover padding="sm" className="flex items-center gap-3">
                 <span className="w-9 h-9 rounded-xl bg-periwinkle-100 flex items-center justify-center text-periwinkle-500">

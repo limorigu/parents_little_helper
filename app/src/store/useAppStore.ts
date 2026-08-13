@@ -128,6 +128,7 @@ export interface LocalActivity {
 
 interface AppState {
   baby: BabyProfile
+  darkMode: boolean
   recordedMilestones: RecordedMilestone[]
   feeds: FeedEntry[]
   sleep: SleepEntry[]
@@ -148,6 +149,7 @@ interface AppState {
   googleWriteSheetName: string | null
 
   setBaby: (updates: Partial<BabyProfile>) => void
+  setDarkMode: (on: boolean) => void
   addRecordedMilestone: (m: RecordedMilestone) => void
   updateRecordedMilestone: (id: string, updates: Partial<RecordedMilestone>) => void
   deleteRecordedMilestone: (id: string) => void
@@ -217,6 +219,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       baby: defaultBaby,
+      darkMode: false,
       recordedMilestones: [],
       feeds: [],
       sleep: [],
@@ -232,6 +235,8 @@ export const useAppStore = create<AppState>()(
 
       setBaby: (updates) =>
         set((s) => ({ baby: { ...s.baby, ...updates } })),
+
+      setDarkMode: (on) => set({ darkMode: on }),
 
       addRecordedMilestone: (m) =>
         set((s) => ({ recordedMilestones: [m, ...s.recordedMilestones] })),
