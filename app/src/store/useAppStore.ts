@@ -140,14 +140,25 @@ export interface PlayEntry {
   notes: string
 }
 
-export interface LocalActivity {
+// A real item pulled from one of three web sources — Ticketmaster (structured
+// events), Google News (news search, via RSS), or a local blog/site feed the
+// user points at themselves (also via RSS). Every field here is copied
+// straight from that source's own response, never invented. `familyFriendly`
+// is derived only from real metadata/keywords, never a made-up detail about
+// the item itself.
+export interface LocalEvent {
   id: string
   name: string
-  description: string
   url: string
-  platform: 'website' | 'instagram' | 'tiktok'
-  ageRange: string
-  fetchedAt: string
+  startDate: string // structured event date (Ticketmaster only); '' if not applicable
+  venueName: string // Ticketmaster only
+  imageUrl: string | null
+  familyFriendly: boolean
+  segment: string
+  source: 'ticketmaster' | 'news' | 'blog'
+  sourceLabel: string // e.g. "Ticketmaster", "Google News", or the feed's own site title
+  description?: string // short snippet, news/blog items only
+  publishedAt?: string // pubDate, news/blog items only
 }
 
 interface AppState {
@@ -168,8 +179,24 @@ interface AppState {
   growth: GrowthEntry[]
   plans: DailyPlan[]
   doctorVisits: DoctorVisit[]
-  localActivities: LocalActivity[]
-  lastActivityFetch: string | null
+  // Local Events (opt-in, via baby.locationEnabled + baby.location). The user
+  // supplies their own free Ticketmaster API key — this app has no backend to
+  // hold a shared secret, so it's the same "bring your own credential" pattern
+  // already used for Google Sync's OAuth client ID.
+  ticketmasterApiKey: string
+  eventsRadiusMiles: number
+  // Two extra, optional web sources layered on top of Ticketmaster — a Google
+  // News search (no key needed) and any RSS/Atom feed the user points at
+  // themselves (a local blog, newsletter, or "things to do" site/handle they
+  // already follow). Both go through rss2json (see src/lib/localEvents.ts)
+  // since neither news.google.com nor arbitrary blogs allow direct
+  // cross-origin fetches from the browser.
+  newsSearchEnabled: boolean
+  localFeedUrl: string
+  rss2jsonApiKey: string
+  localEvents: LocalEvent[]
+  lastEventsFetch: string | null
+  eventsFetchError: string | null
   celebrations: CelebrationPhoto[]
 
   // Google Sheets/Drive integration
@@ -222,7 +249,13 @@ interface AppState {
   addDoctorVisit: (v: DoctorVisit) => void
   updateDoctorVisit: (id: string, updates: Partial<DoctorVisit>) => void
 
-  setLocalActivities: (activities: LocalActivity[], fetchedAt: string) => void
+  setTicketmasterApiKey: (key: string) => void
+  setEventsRadiusMiles: (miles: number) => void
+  setNewsSearchEnabled: (on: boolean) => void
+  setLocalFeedUrl: (url: string) => void
+  setRss2jsonApiKey: (key: string) => void
+  setLocalEvents: (events: LocalEvent[], fetchedAt: string) => void
+  setEventsFetchError: (msg: string | null) => void
   addCelebration: (c: CelebrationPhoto) => void
   updateCelebration: (id: string, updates: Partial<CelebrationPhoto>) => void
   deleteCelebration: (id: string) => void
@@ -275,8 +308,18 @@ export const useAppStore = create<AppState>()(
       growth: [],
       plans: [],
       doctorVisits: [],
-      localActivities: [],
-      lastActivityFetch: null,
+      ticketmasterApiKey: '',
+      eventsRadiusMiles: 15,
+      newsSearchEnabled: true,
+      // Defaults to Boston.com's "Family" tag RSS feed — a real, actively-updated,
+      // verified-working feed — as a reasonable out-of-the-box example. Users
+      // outside the Boston area (or who just prefer a different source) should
+      // swap this for their own local blog/site feed in Settings.
+      localFeedUrl: 'https://www.boston.com/tag/family/feed/',
+      rss2jsonApiKey: '',
+      localEvents: [],
+      lastEventsFetch: null,
+      eventsFetchError: null,
       celebrations: [],
       ...defaultGoogleConfig,
 
@@ -377,8 +420,14 @@ export const useAppStore = create<AppState>()(
           ),
         })),
 
-      setLocalActivities: (activities, fetchedAt) =>
-        set({ localActivities: activities, lastActivityFetch: fetchedAt }),
+      setTicketmasterApiKey: (key) => set({ ticketmasterApiKey: key }),
+      setEventsRadiusMiles: (miles) => set({ eventsRadiusMiles: miles }),
+      setNewsSearchEnabled: (on) => set({ newsSearchEnabled: on }),
+      setLocalFeedUrl: (url) => set({ localFeedUrl: url }),
+      setRss2jsonApiKey: (key) => set({ rss2jsonApiKey: key }),
+      setLocalEvents: (events, fetchedAt) =>
+        set({ localEvents: events, lastEventsFetch: fetchedAt, eventsFetchError: null }),
+      setEventsFetchError: (msg) => set({ eventsFetchError: msg }),
 
       addCelebration: (c) =>
         set((s) => ({ celebrations: [c, ...s.celebrations] })),

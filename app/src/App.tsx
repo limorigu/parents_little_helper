@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from './store/useAppStore'
 import { useGoogleAutoSync } from './hooks/useGoogleAutoSync'
+import { useLocalEventsAutoRefresh } from './hooks/useLocalEventsAutoRefresh'
 import { Navigation } from './components/layout/Navigation'
 import { DarkModeToggle } from './components/ui/DarkModeToggle'
 import { Dashboard } from './pages/Dashboard'
@@ -12,11 +13,13 @@ import { Tracker } from './pages/Tracker'
 import { GrowthChart } from './pages/GrowthChart'
 import { Calendar } from './pages/Calendar'
 import { DoctorPrep } from './pages/DoctorPrep'
+import { LocalEvents } from './pages/LocalEvents'
 import { Settings } from './pages/Settings'
 
 function AppShell() {
   const { baby, darkMode } = useAppStore()
   useGoogleAutoSync()
+  useLocalEventsAutoRefresh()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -49,6 +52,7 @@ function AppShell() {
           <Route path="/growth" element={<GrowthChart />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/doctor" element={<DoctorPrep />} />
+          <Route path="/events" element={<LocalEvents />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

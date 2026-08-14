@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2, Moon } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2, Moon, MapPin } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { Card } from '../components/ui/Card'
+import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
 import { getBabyAgeLabel, normaliseQuotes, today, uid } from '../lib/utils'
+import { fetchAllLocalEvents, LocalEventsFetchError } from '../lib/localEvents'
 import { signIn, signOut, getToken, isSignedIn } from '../lib/googleApi'
 import {
   setupDrive,
@@ -112,13 +115,14 @@ function ProfileSection({
             placeholder="e.g. Sarah"
           />
           <Input
-            label="Your location (city or postcode)"
+            label="Your postcode"
             value={form.location}
             onChange={(e) => set('location', e.target.value)}
-            placeholder="e.g. London, E1 or New York, NY"
+            placeholder="e.g. SW1A 1AA or 10001"
           />
           <p className="text-xs text-stone-400">
-            We use your location to suggest local classes, parks, and activities. It never leaves your device.
+            Used to suggest real local events nearby (see "Local Events" below). It's only sent to Ticketmaster —
+            never anywhere else — and only once you enable this.
           </p>
           <label className="flex items-center gap-3 cursor-pointer">
             <div
@@ -806,6 +810,211 @@ function GoogleSection() {
   )
 }
 
+// ── Local Events section ──────────────────────────────────────────────────────
+
+function LocalEventsSection() {
+  const {
+    baby, ticketmasterApiKey, setTicketmasterApiKey, eventsRadiusMiles, setEventsRadiusMiles,
+    newsSearchEnabled, setNewsSearchEnabled, localFeedUrl, setLocalFeedUrl,
+    rss2jsonApiKey, setRss2jsonApiKey, lastEventsFetch, setLocalEvents,
+  } = useAppStore()
+
+  const [apiKeyInput, setApiKeyInput] = useState(ticketmasterApiKey)
+  const [radiusInput, setRadiusInput] = useState(eventsRadiusMiles)
+  const [newsInput, setNewsInput] = useState(newsSearchEnabled)
+  const [feedUrlInput, setFeedUrlInput] = useState(localFeedUrl)
+  const [rss2jsonKeyInput, setRss2jsonKeyInput] = useState(rss2jsonApiKey)
+  const [status, setStatus] = useState<'idle' | 'refreshing' | 'success' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+
+  function persistInputs() {
+    setTicketmasterApiKey(apiKeyInput.trim())
+    setEventsRadiusMiles(radiusInput)
+    setNewsSearchEnabled(newsInput)
+    setLocalFeedUrl(feedUrlInput.trim())
+    setRss2jsonApiKey(rss2jsonKeyInput.trim())
+  }
+
+  function handleSave() {
+    persistInputs()
+    setStatus('success')
+    setTimeout(() => setStatus('idle'), 2000)
+  }
+
+  async function handleRefreshNow() {
+    if (!baby.locationEnabled || !baby.location.trim()) {
+      setStatus('error')
+      setErrorMsg('Turn on "Enable location-based activity suggestions" above and add your postcode first.')
+      return
+    }
+    if (!apiKeyInput.trim() && !newsInput && !feedUrlInput.trim()) {
+      setStatus('error')
+      setErrorMsg('Add at least one source: a Ticketmaster API key, Google News, or a local feed URL.')
+      return
+    }
+    setStatus('refreshing')
+    setErrorMsg('')
+    persistInputs()
+    try {
+      const { events, errors } = await fetchAllLocalEvents({
+        postcode: baby.location,
+        ticketmasterApiKey: apiKeyInput.trim(),
+        radiusMiles: radiusInput,
+        newsSearchEnabled: newsInput,
+        localFeedUrl: feedUrlInput.trim(),
+        rss2jsonApiKey: rss2jsonKeyInput.trim(),
+      })
+      setLocalEvents(events, new Date().toISOString())
+      if (errors.length) {
+        setStatus('error')
+        setErrorMsg(errors.join(' '))
+      } else {
+        setStatus('success')
+        setTimeout(() => setStatus('idle'), 3000)
+      }
+    } catch (e) {
+      setStatus('error')
+      setErrorMsg(e instanceof LocalEventsFetchError ? e.message : 'Could not refresh local events.')
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-1">
+        <MapPin size={18} className="text-sage-500 shrink-0" />
+        <div className="flex-1">
+          <h2 className="font-display text-base text-stone-700">Local Events</h2>
+          <p className="text-xs text-stone-400">Real, nearby events — controlled by "Enable location-based activity suggestions" above</p>
+        </div>
+        {baby.locationEnabled && (ticketmasterApiKey || newsSearchEnabled || localFeedUrl) && (
+          <Badge className="bg-sage-100 text-sage-700 shrink-0">Active</Badge>
+        )}
+      </div>
+
+      <div className="bg-cream-100 rounded-2xl p-4 mt-3 mb-3">
+        <p className="text-xs text-stone-500 leading-relaxed">
+          Three optional web sources, all real, never made up: Ticketmaster's listings, a Google News search for
+          local family/kids coverage, and any local blog, newsletter, or "things to do" site/handle you point at
+          below. This app has no server, so each is called directly from your device, and everything refreshes
+          automatically about once a week.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <Input
+            label="Ticketmaster API key (optional)"
+            value={apiKeyInput}
+            onChange={(e) => setApiKeyInput(e.target.value.trim())}
+            placeholder="Paste your Consumer Key"
+          />
+          <p className="text-xs text-stone-400 leading-relaxed mt-1.5">
+            Free —{' '}
+            <a
+              href="https://developer.ticketmaster.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-periwinkle-500 underline"
+            >
+              sign up at developer.ticketmaster.com
+            </a>
+            , create an app, then copy its "Consumer Key" here. Gives structured events with real dates and venues.
+          </p>
+        </div>
+
+        <div>
+          <p className="block text-sm font-medium text-stone-600 mb-1.5">Search radius (Ticketmaster)</p>
+          <div className="flex gap-2">
+            {[5, 15, 30].map((m) => (
+              <button
+                key={m}
+                onClick={() => setRadiusInput(m)}
+                className={`flex-1 py-2 rounded-xl border text-xs font-medium transition-all ${radiusInput === m ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300'}`}
+              >
+                {m} miles
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div
+            onClick={() => setNewsInput((v) => !v)}
+            className={`w-10 h-6 rounded-full flex items-center transition-all shrink-0 ${newsInput ? 'bg-stone-800' : 'bg-stone-400'}`}
+          >
+            <span className={`w-4 h-4 bg-cream-50 rounded-full shadow-sm ml-1 transition-all ${newsInput ? 'translate-x-4' : ''}`} />
+          </div>
+          <span className="text-sm text-stone-600">Also search Google News for local family/kids coverage</span>
+        </label>
+
+        <div>
+          <Input
+            label="Local site or blog feed (optional)"
+            value={feedUrlInput}
+            onChange={(e) => setFeedUrlInput(e.target.value.trim())}
+            placeholder="https://yourlocalblog.com/feed"
+          />
+          <p className="text-xs text-stone-400 leading-relaxed mt-1.5">
+            Paste the RSS/Atom feed URL of any local site, newsletter, or "things to do" handle you already follow —
+            most WordPress sites expose one at <code>/feed</code>. Its own items show up tagged with the feed's own
+            site name, exactly as published — nothing here is written by this app.
+          </p>
+          <p className="text-xs text-periwinkle-600 bg-periwinkle-50 border border-periwinkle-200 rounded-lg px-2.5 py-2 leading-relaxed mt-2">
+            Defaults to Boston.com's "Family" feed, just as a working example — not everyone's local area! If you're
+            elsewhere (or just have a favorite local blog/newsletter), swap this for a feed you actually follow.
+          </p>
+        </div>
+
+        <div>
+          <Input
+            label="rss2json API key (optional)"
+            value={rss2jsonKeyInput}
+            onChange={(e) => setRss2jsonKeyInput(e.target.value.trim())}
+            placeholder="Only needed for higher reliability"
+          />
+          <p className="text-xs text-stone-400 leading-relaxed mt-1.5">
+            Google News and blog feeds don't allow this app to read them directly, so both go through{' '}
+            <a
+              href="https://rss2json.com/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-periwinkle-500 underline"
+            >
+              rss2json.com
+            </a>
+            , a free feed-to-JSON converter. It works without a key for occasional weekly refreshes — add a free key
+            here only if you hit its rate limit.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="secondary" fullWidth onClick={handleSave}>Save</Button>
+          <Button fullWidth onClick={handleRefreshNow} disabled={status === 'refreshing'}>
+            {status === 'refreshing' ? 'Refreshing…' : 'Refresh now'}
+          </Button>
+        </div>
+
+        {lastEventsFetch && (
+          <p className="text-xs text-stone-400">Last refreshed {format(parseISO(lastEventsFetch), "d MMM 'at' h:mm a")}.</p>
+        )}
+
+        {status === 'error' && errorMsg && (
+          <div className="flex items-start gap-2 bg-blush-50 border border-blush-200 rounded-xl p-3 text-sm text-blush-700">
+            <AlertCircle size={15} className="shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+        {status === 'success' && (
+          <div className="flex items-center gap-2 bg-sage-50 rounded-xl p-3 text-sm text-sage-700">
+            <CheckCircle2 size={15} />
+            Saved.
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 // ── Main Settings page ────────────────────────────────────────────────────────
 
 export function Settings() {
@@ -854,6 +1063,7 @@ export function Settings() {
           <div className="space-y-4">
             <ProfileSection form={form} set={set} onSave={save} saved={saved} />
             <AppearanceSection />
+            <LocalEventsSection />
             <GoogleSection />
           </div>
         </PageShell>

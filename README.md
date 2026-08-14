@@ -4,6 +4,8 @@
 
 A sophisticated, warm companion app for parents on parental leave — tracking milestones, daily plans, feeding, sleep, growth, and everything in between.
 
+![Key features: Daily Log, Zen Mode, Doctor Prep, and the Digital Sticker Book](app/assets/parents_helper_key_features.png)
+
 ---
 
 ## Features
