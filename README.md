@@ -18,7 +18,8 @@ A sophisticated, warm companion app for parents on parental leave — tracking m
 | **Milestones** | Weekly standard and ⭐ overachiever milestone cards with supporting activities; flags milestones recorded unusually early for discussion with a doctor |
 | **Daily Plan** | Auto-generated activity tiles based on baby's age; fully reorderable via drag-and-drop; mark complete, delete, or add your own; confirm and lock the day's schedule |
 | **Milestone Recorder** | 3-step flow: select or describe the moment → add photo or video → answer gentle follow-up questions to capture the full memory |
-| **Activity Research** | Curated age-appropriate activity bank; tiles indicate category (play, outdoor, sensory, social, rest, feed) with duration; local activities surfaced via location (Phase 2) |
+| **Activity Research** | Curated age-appropriate activity bank; tiles indicate category (play, outdoor, sensory, social, rest, feed) with duration |
+| **Local Events** *(opt-in)* | Real, never-invented event and activity suggestions near an opt-in postcode, pulled weekly from Ticketmaster, Google News, and any local blog/feed you add |
 
 ### Phase 1 additions
 
