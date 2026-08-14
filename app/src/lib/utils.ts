@@ -85,6 +85,21 @@ export function toDateTimeInput(iso: string | null | undefined): string {
   return format(d, "yyyy-MM-dd'T'HH:mm")
 }
 
+/**
+ * Sensible default for an empty "End time" field once the user starts filling
+ * it in: same calendar date as the start time, same clock time (so they only
+ * need to nudge the minutes/hours forward) — unless the start time is at or
+ * after 23:00, in which case the session very likely rolls into the next day,
+ * so the default date is bumped forward one day.
+ */
+export function defaultEndFor(startIso: string | null | undefined): string {
+  if (!startIso) return ''
+  const d = new Date(startIso)
+  if (Number.isNaN(d.getTime())) return ''
+  if (d.getHours() >= 23) d.setDate(d.getDate() + 1)
+  return format(d, "yyyy-MM-dd'T'HH:mm")
+}
+
 /** The local calendar day ("yyyy-MM-dd") a stored timestamp belongs to. */
 export function localDayKey(iso: string): string {
   if (!iso) return ''

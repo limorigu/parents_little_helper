@@ -16,6 +16,7 @@ import type {
   GrowthEntry,
   RecordedMilestone,
   DoctorVisit,
+  CelebrationPhoto,
 } from '../store/useAppStore'
 import { localDayKey } from './utils'
 
@@ -133,7 +134,12 @@ export function extractFolderId(urlOrId: string): string {
   return m ? m[1] : urlOrId.trim()
 }
 
-/** Upload a base64 data URL to Drive. Returns { id, webViewLink }. */
+/**
+ * Upload a base64 data URL to Drive as its own file, in its original format
+ * (png/jpeg/mp4/…) — we only decode the base64 wrapper, never re-encode the
+ * media, and tell Drive the real mimeType explicitly so it's stored/served
+ * as that file type rather than a generic blob. Returns { id, webViewLink }.
+ */
 export async function uploadMedia(
   token: string,
   folderId: string,
@@ -146,7 +152,7 @@ export async function uploadMedia(
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
 
-  const meta = JSON.stringify({ name: filename, parents: [folderId] })
+  const meta = JSON.stringify({ name: filename, parents: [folderId], mimeType })
   const form = new FormData()
   form.append('metadata', new Blob([meta], { type: 'application/json' }))
   form.append('file', new Blob([bytes], { type: mimeType }), filename)
@@ -158,6 +164,64 @@ export async function uploadMedia(
   })
   if (!r.ok) throw new Error(`Media upload ${r.status}: ${await r.text()}`)
   return r.json()
+}
+
+const MIME_EXTENSION: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+}
+
+function extensionForMimeType(mimeType: string): string {
+  return MIME_EXTENSION[mimeType] ?? mimeType.split('/')[1]?.replace(/[^a-z0-9]/gi, '') ?? 'bin'
+}
+
+/**
+ * Deterministic Drive filename for a piece of app media — same entry always
+ * maps to the same name, which is what lets `uploadMediaIfNeeded` recognize
+ * "this is already in Drive" instead of creating a duplicate file on every
+ * sync.
+ */
+export function mediaFilename(kind: 'milestone' | 'celebration', id: string, base64DataUrl: string): string {
+  const mimeType = base64DataUrl.match(/^data:(.*?);/)?.[1] ?? 'image/jpeg'
+  return `${kind}-${id}.${extensionForMimeType(mimeType)}`
+}
+
+/** Look up an existing Drive file by exact name inside a folder (dedup check). */
+async function findFileInFolder(
+  token: string,
+  folderId: string,
+  filename: string,
+): Promise<{ id: string; webViewLink: string } | null> {
+  const q = `name='${escapeQ(filename)}' and '${escapeQ(folderId)}' in parents and trashed=false`
+  const { files } = await driveGet<{ files: { id: string; webViewLink?: string }[] }>(
+    token,
+    `?q=${encodeURIComponent(q)}&fields=files(id,webViewLink)&spaces=drive`,
+  )
+  return files.length ? { id: files[0].id, webViewLink: files[0].webViewLink ?? '' } : null
+}
+
+/**
+ * Upload media to Drive only if a file with this deterministic name doesn't
+ * already exist in the folder — this is the "check if it's already there,
+ * don't duplicate" step used both right after a photo/video is captured and
+ * again during a full sync (to catch anything captured while offline).
+ */
+export async function uploadMediaIfNeeded(
+  token: string,
+  folderId: string,
+  filename: string,
+  base64DataUrl: string,
+): Promise<{ id: string; webViewLink: string }> {
+  const existing = await findFileInFolder(token, folderId, filename)
+  if (existing) return existing
+  return uploadMedia(token, folderId, base64DataUrl, filename)
 }
 
 // ── Spreadsheet helpers ─────────────────────────────────────────────────────
@@ -417,15 +481,32 @@ export interface SyncPayload {
   growth: GrowthEntry[]
   recordedMilestones: RecordedMilestone[]
   doctorVisits: DoctorVisit[]
+  celebrations: CelebrationPhoto[]
 }
 
-/** Write all app data into the spreadsheet (full replace, not append). */
+/** One photo/video that got uploaded to Drive during this sync, so the caller can stash its Drive id/link back onto the entry. */
+export interface MediaUploadResult {
+  kind: 'milestone' | 'celebration'
+  id: string
+  driveFileId: string
+  driveWebViewLink: string
+}
+
+/**
+ * Write all app data into the spreadsheet (full replace, not append), and
+ * upload any milestone/celebration photo or video that hasn't made it to
+ * Drive yet (anything already carrying a `driveFileId` is skipped — it was
+ * either uploaded right when it was captured, or by an earlier sync).
+ * Returns the newly-uploaded media so the caller can record their Drive id/
+ * link on those entries.
+ */
 export async function syncAllData(
   token: string,
   spreadsheetId: string,
+  mediaFolderId: string,
   data: SyncPayload,
-): Promise<void> {
-  const { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits } = data
+): Promise<MediaUploadResult[]> {
+  const { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits, celebrations } = data
 
   // Activity Log — sorted by date then start time
   const activityRows: Row[] = [
@@ -441,16 +522,41 @@ export async function syncAllData(
   ]
   await putSheet(token, spreadsheetId, 'Activity Log', activityRows)
 
-  // Milestones
+  // Upload any photo/video that isn't in Drive yet, as its own file (original
+  // format — see uploadMedia). Deterministic filenames mean this never
+  // duplicates something already uploaded, whether that happened just now or
+  // on a previous sync.
+  const uploads: MediaUploadResult[] = []
+  for (const m of recordedMilestones) {
+    if (!m.mediaUrl || m.driveFileId) continue
+    const filename = mediaFilename('milestone', m.id, m.mediaUrl)
+    const { id, webViewLink } = await uploadMediaIfNeeded(token, mediaFolderId, filename, m.mediaUrl)
+    uploads.push({ kind: 'milestone', id: m.id, driveFileId: id, driveWebViewLink: webViewLink })
+  }
+  for (const c of celebrations) {
+    if (!c.mediaUrl || c.driveFileId) continue
+    const filename = mediaFilename('celebration', c.id, c.mediaUrl)
+    const { id, webViewLink } = await uploadMediaIfNeeded(token, mediaFolderId, filename, c.mediaUrl)
+    uploads.push({ kind: 'celebration', id: c.id, driveFileId: id, driveWebViewLink: webViewLink })
+  }
+
+  function driveLinkFor(m: RecordedMilestone): string {
+    if (m.driveWebViewLink) return m.driveWebViewLink
+    return uploads.find((u) => u.kind === 'milestone' && u.id === m.id)?.driveWebViewLink ?? ''
+  }
+
+  // Milestones — link to the uploaded Drive file rather than embedding raw
+  // photo data: a photo's base64 easily runs 1M+ characters, far past a
+  // Sheets cell's ~50,000-character limit, so it would just get truncated.
   const milestoneRows: Row[] = [
-    ['Date', 'Week', 'Title', 'Category', 'Notes', 'Media URL'],
+    ['Date', 'Week', 'Title', 'Category', 'Notes', 'Photo/Video'],
     ...recordedMilestones.map((m) => [
       m.date,
       m.week,
       m.title,
       m.milestoneId ?? 'custom',
       m.notes,
-      m.mediaUrl ?? '',
+      driveLinkFor(m),
     ]),
   ]
   await putSheet(token, spreadsheetId, 'Milestones', milestoneRows)
@@ -480,6 +586,8 @@ export async function syncAllData(
     ]),
   ]
   await putSheet(token, spreadsheetId, 'Doctor Visits', doctorRows)
+
+  return uploads
 }
 
 // ── Import ──────────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ import {
   createSheetTab,
   MissingDateError,
 } from '../lib/googleSync'
-import type { ImportedData } from '../lib/googleSync'
+import type { ImportedData, MediaUploadResult } from '../lib/googleSync'
 
 // ── Baby profile form ────────────────────────────────────────────────────────
 
@@ -179,9 +179,9 @@ type SyncStatus = 'idle' | 'connecting' | 'syncing' | 'importing' | 'previewing'
 function GoogleSection() {
   const store = useAppStore()
   const {
-    baby, googleClientId, googleFolderId, googleSheetId, googleLastSync, googleWriteSheetName,
+    baby, googleClientId, googleFolderId, googleMediaFolderId, googleSheetId, googleLastSync, googleWriteSheetName,
     googleParentFolderId, setGoogleConfig, feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits,
-    addFeed, addSleep, addDiaper, addPlay,
+    celebrations, addFeed, addSleep, addDiaper, addPlay, updateRecordedMilestone, updateCelebration,
   } = store
 
   const [clientIdInput, setClientIdInput] = useState(googleClientId)
@@ -221,22 +221,33 @@ function GoogleSection() {
 
   function err(msg: string) { setStatus('error'); setErrorMsg(msg) }
 
+  /** Apply any newly Drive-uploaded media back onto the entries that were missing it. */
+  function applyUploads(uploads: MediaUploadResult[]) {
+    uploads.forEach((u) => {
+      const updates = { driveFileId: u.driveFileId, driveWebViewLink: u.driveWebViewLink }
+      if (u.kind === 'milestone') updateRecordedMilestone(u.id, updates)
+      else updateCelebration(u.id, updates)
+    })
+  }
+
   async function ensureDriveAndSheet(
     token: string,
     parentFolderIdOverride?: string | null,
-  ): Promise<{ folderId: string; sheetId: string }> {
+  ): Promise<{ folderId: string; mediaFolderId: string; sheetId: string }> {
     let folderId = googleFolderId
+    let mediaFolderId = googleMediaFolderId
     let sheetId = googleSheetId
 
-    if (!folderId || !sheetId) {
+    if (!folderId || !sheetId || !mediaFolderId) {
       const parent = parentFolderIdOverride !== undefined ? parentFolderIdOverride : googleParentFolderId
-      const { folderId: fi } = await setupDrive(token, baby.name, parent)
-      folderId = fi
+      const created = await setupDrive(token, baby.name, parent)
+      folderId = created.folderId
+      mediaFolderId = created.mediaFolderId
       const title = baby.name ? `${baby.name}'s Log` : "Baby's Log"
       sheetId = await findOrCreateSpreadsheet(token, folderId, title)
-      setGoogleConfig({ folderId, sheetId })
+      setGoogleConfig({ folderId, mediaFolderId, sheetId })
     }
-    return { folderId, sheetId }
+    return { folderId, mediaFolderId, sheetId }
   }
 
   async function handleConnect() {
@@ -255,8 +266,11 @@ function GoogleSection() {
         : googleParentFolderId
       setGoogleConfig({ clientId: clientIdInput.trim(), parentFolderId })
       // Immediately set up Drive folder + sheet on first connect
-      const { sheetId } = await ensureDriveAndSheet(token, parentFolderId)
-      await syncAllData(token, sheetId, { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits })
+      const { sheetId, mediaFolderId } = await ensureDriveAndSheet(token, parentFolderId)
+      const uploads = await syncAllData(token, sheetId, mediaFolderId, {
+        feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits, celebrations,
+      })
+      applyUploads(uploads)
       setGoogleConfig({ lastSync: new Date().toISOString() })
       setStatus('success')
       setTimeout(() => setStatus('idle'), 3000)
@@ -286,8 +300,11 @@ function GoogleSection() {
     setStatus('syncing')
     setErrorMsg('')
     try {
-      const { sheetId } = await ensureDriveAndSheet(token)
-      await syncAllData(token, sheetId, { feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits })
+      const { sheetId, mediaFolderId } = await ensureDriveAndSheet(token)
+      const uploads = await syncAllData(token, sheetId, mediaFolderId, {
+        feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits, celebrations,
+      })
+      applyUploads(uploads)
       setGoogleConfig({ lastSync: new Date().toISOString() })
       setStatus('success')
       setTimeout(() => setStatus('idle'), 3000)

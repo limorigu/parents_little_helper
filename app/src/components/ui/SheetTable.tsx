@@ -1,10 +1,19 @@
-import { type ReactNode } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { Pencil, Trash2, ChevronsLeftRight } from 'lucide-react'
 
 export interface SheetColumn {
   key: string
   label: string
   className?: string
+  /**
+   * Marks this as the long-form free-text column (Notes). By default its
+   * cells are a fixed width with an internal horizontal scrollbar, so a long
+   * note never stretches the table or shifts columns between tabs — every
+   * SheetTable that sets this uses the exact same width. Clicking the column
+   * header toggles every cell in that column to wrap and show its full text
+   * instead.
+   */
+  expandable?: boolean
 }
 
 export interface SheetRow {
@@ -26,6 +35,17 @@ interface SheetTableProps {
  */
 export function SheetTable({ columns, rows, onEditRow, onDeleteRow }: SheetTableProps) {
   const hasActions = Boolean(onEditRow || onDeleteRow)
+  const [expandedCols, setExpandedCols] = useState<Set<string>>(new Set())
+
+  function toggleExpanded(key: string) {
+    setExpandedCols((cur) => {
+      const next = new Set(cur)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   return (
     <div className="border-4 border-stone-800 rounded-2xl shadow-brutal overflow-hidden overflow-x-auto">
       <table className="w-full text-sm border-collapse min-w-[560px]">
@@ -34,9 +54,14 @@ export function SheetTable({ columns, rows, onEditRow, onDeleteRow }: SheetTable
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`text-left text-cream-50 font-display font-bold text-xs uppercase tracking-wide px-3 py-2.5 whitespace-nowrap ${col.className ?? ''}`}
+                onClick={col.expandable ? () => toggleExpanded(col.key) : undefined}
+                className={`text-left text-cream-50 font-display font-bold text-xs uppercase tracking-wide px-3 py-2.5 whitespace-nowrap ${col.expandable ? 'cursor-pointer hover:text-marigold-200 select-none' : ''} ${col.className ?? ''}`}
+                title={col.expandable ? (expandedCols.has(col.key) ? 'Click to collapse' : 'Click to expand') : undefined}
               >
-                {col.label}
+                <span className="inline-flex items-center gap-1">
+                  {col.label}
+                  {col.expandable && <ChevronsLeftRight size={11} />}
+                </span>
               </th>
             ))}
             {hasActions && <th className="w-16 bg-stone-600" />}
@@ -45,11 +70,29 @@ export function SheetTable({ columns, rows, onEditRow, onDeleteRow }: SheetTable
         <tbody>
           {rows.map((row, i) => (
             <tr key={row.id} className={i % 2 === 0 ? 'bg-cream-50' : 'bg-cream-100'}>
-              {columns.map((col) => (
-                <td key={col.key} className="px-3 py-2 border-t-2 border-stone-200 align-middle whitespace-nowrap">
-                  {row.cells[col.key]}
-                </td>
-              ))}
+              {columns.map((col) => {
+                const expanded = col.expandable && expandedCols.has(col.key)
+                return (
+                  <td
+                    key={col.key}
+                    className={`px-3 py-2 border-t-2 border-stone-200 align-middle ${col.expandable ? '' : 'whitespace-nowrap'}`}
+                  >
+                    {col.expandable ? (
+                      <div
+                        className={
+                          expanded
+                            ? 'w-40 whitespace-normal break-words'
+                            : 'w-40 overflow-x-auto whitespace-nowrap'
+                        }
+                      >
+                        {row.cells[col.key]}
+                      </div>
+                    ) : (
+                      row.cells[col.key]
+                    )}
+                  </td>
+                )
+              })}
               {hasActions && (
                 <td className="px-2 border-t-2 border-stone-200 text-center whitespace-nowrap">
                   <div className="flex items-center justify-center gap-2">

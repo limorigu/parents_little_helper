@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { formatTime, today, uid, toDateTimeInput, localDayKey } from '../lib/utils'
+import { formatTime, today, uid, toDateTimeInput, localDayKey, defaultEndFor, elapsedSince } from '../lib/utils'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -12,6 +12,7 @@ import { SheetTable, SheetChip, type SheetColumn, type SheetRow } from '../compo
 import { PageShell } from '../components/layout/PageShell'
 import { TrackerInsights } from '../components/tracker/TrackerInsights'
 import { TodaySchedule } from '../components/tracker/TodaySchedule'
+import { QuickLog } from '../components/dashboard/QuickLog'
 import type { FeedEntry, SleepEntry, DiaperEntry, PlayEntry } from '../store/useAppStore'
 
 const SHEET_COLUMNS: SheetColumn[] = [
@@ -20,12 +21,21 @@ const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'start', label: 'Start Time' },
   { key: 'end', label: 'End Time' },
   { key: 'duration', label: 'Duration' },
-  { key: 'notes', label: 'Notes' },
+  { key: 'notes', label: 'Notes', expandable: true },
 ]
 
-// Diaper tab only — the other tabs' rows simply omit this key, and SheetTable
-// renders a blank cell for any missing key.
-const DIAPER_SHEET_COLUMNS: SheetColumn[] = [...SHEET_COLUMNS, { key: 'potty', label: 'Potty (EC)' }]
+// Diaper tab only — the EC/potty column sits before Notes (rather than the
+// shared SHEET_COLUMNS' trailing Notes), and the other tabs' rows simply omit
+// the 'potty' key, which SheetTable renders as a blank cell.
+const DIAPER_SHEET_COLUMNS: SheetColumn[] = [
+  { key: 'date', label: 'Date' },
+  { key: 'activity', label: 'Activity' },
+  { key: 'start', label: 'Start Time' },
+  { key: 'end', label: 'End Time' },
+  { key: 'duration', label: 'Duration' },
+  { key: 'potty', label: 'Potty (EC)' },
+  { key: 'notes', label: 'Notes', expandable: true },
+]
 
 type Tab = 'feed' | 'sleep' | 'diaper' | 'play' | 'insights'
 
@@ -43,6 +53,7 @@ const DIAPER_TYPES: Array<{ value: DiaperEntry['type']; label: string; icon: str
   { value: 'wet', label: 'Wet', icon: '💧' },
   { value: 'dirty', label: 'Dirty', icon: '💩' },
   { value: 'both', label: 'Both', icon: '🔄' },
+  { value: 'clean', label: 'Clean (EC success)', icon: '✨' },
   { value: 'unknown', label: "Not sure", icon: '❓' },
 ]
 
@@ -126,6 +137,7 @@ function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
           label="End time (optional)"
           type="datetime-local"
           value={end}
+          onFocus={() => { if (!end) setEnd(defaultEndFor(time)) }}
           onChange={(e) => { setEnd(e.target.value); setEndError('') }}
           error={endError}
         />
@@ -225,6 +237,7 @@ function SleepModal({
           label={active && !editEntry ? 'End time' : 'End time (optional — leave blank if still sleeping)'}
           type="datetime-local"
           value={end}
+          onFocus={() => { if (!end) setEnd(defaultEndFor(active && !editEntry ? active.startTime : start)) }}
           onChange={(e) => { setEnd(e.target.value); setEndError('') }}
           error={endError}
         />
@@ -249,29 +262,39 @@ function DiaperModal({ open, onClose, editEntry }: { open: boolean; onClose: () 
   const { addDiaper, updateDiaper } = useAppStore()
   const [dtype, setDtype] = useState<DiaperEntry['type']>('wet')
   const [time, setTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+  const [end, setEnd] = useState('')
   const [notes, setNotes] = useState('')
+  const [endError, setEndError] = useState('')
   const [pottyResult, setPottyResult] = useState<DiaperEntry['pottyResult']>(undefined)
 
   useEffect(() => {
     if (!open) return
+    setEndError('')
     if (editEntry) {
       setDtype(editEntry.type)
       setTime(toDateTimeInput(editEntry.startTime))
+      setEnd(toDateTimeInput(editEntry.endTime))
       setNotes(editEntry.notes)
       setPottyResult(editEntry.pottyResult)
     } else {
       setDtype('wet')
       setTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+      setEnd('')
       setNotes('')
       setPottyResult(undefined)
     }
   }, [open, editEntry])
 
   function save() {
+    if (end && new Date(end).getTime() <= new Date(time).getTime()) {
+      setEndError("End time can't be before the start time")
+      return
+    }
+    setEndError('')
     if (editEntry) {
-      updateDiaper(editEntry.id, { startTime: time, type: dtype, notes, pottyResult })
+      updateDiaper(editEntry.id, { startTime: time, endTime: end || null, type: dtype, notes, pottyResult })
     } else {
-      addDiaper({ id: uid(), startTime: time, endTime: null, type: dtype, notes, pottyResult })
+      addDiaper({ id: uid(), startTime: time, endTime: end || null, type: dtype, notes, pottyResult })
     }
     onClose()
   }
@@ -291,6 +314,14 @@ function DiaperModal({ open, onClose, editEntry }: { open: boolean; onClose: () 
           ))}
         </div>
         <Input label="Time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} />
+        <Input
+          label="End time (optional)"
+          type="datetime-local"
+          value={end}
+          onFocus={() => { if (!end) setEnd(defaultEndFor(time)) }}
+          onChange={(e) => { setEnd(e.target.value); setEndError('') }}
+          error={endError}
+        />
         <div>
           <p className="text-sm font-medium text-stone-600 mb-2">Went in the potty too? (elimination communication — optional)</p>
           <div className="grid grid-cols-3 gap-2">
@@ -357,6 +388,7 @@ function PlayModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
           label="End time (optional)"
           type="datetime-local"
           value={end}
+          onFocus={() => { if (!end) setEnd(defaultEndFor(start)) }}
           onChange={(e) => { setEnd(e.target.value); setEndError('') }}
           error={endError}
         />
@@ -389,13 +421,14 @@ const DIAPER_LABELS: Record<DiaperEntry['type'], string> = {
   wet: '💧 Wet',
   dirty: '💩 Dirty',
   both: '🔄 Both',
+  clean: '✨ Clean',
   unknown: '❓ Unknown',
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function Tracker() {
-  const { feeds, sleep, diaper, play, baby, deleteFeed, deleteSleep, deleteDiaper, deletePlay } = useAppStore()
+  const { feeds, sleep, diaper, play, baby, activeFeedId, deleteFeed, deleteSleep, deleteDiaper, deletePlay } = useAppStore()
   const [tab, setTab] = useState<Tab>('feed')
   const [feedModal, setFeedModal] = useState(false)
   const [sleepModal, setSleepModal] = useState(false)
@@ -461,7 +494,20 @@ export function Tracker() {
 
   const todayFeeds = feeds.filter((f) => localDayKey(f.date) === todayStr)
   const todayDiapers = diaper.filter((d) => localDayKey(d.startTime) === todayStr)
-  const activeSleepSession = sleep.find((s) => !s.endTime)
+
+  // "In progress" sessions — same reasoning as QuickLog on the Dashboard: if
+  // more than one entry is somehow left open, prefer whichever started most
+  // recently rather than array order. Surfacing these here (rather than only
+  // as a ticking dashboard tile) is what makes it obvious *how* to close a
+  // session with a specific, manually-entered end time — tap the card below,
+  // not "Log a new one".
+  const activeFeed = activeFeedId ? feeds.find((f) => f.id === activeFeedId && !f.endTime) ?? null : null
+  const activeSleepSession = sleep
+    .filter((s) => !s.endTime)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0] ?? null
+  const activePlaySession = play
+    .filter((p) => !p.endTime)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0] ?? null
 
   const subtitleParts = [
     todayFeeds.length ? `${todayFeeds.length} feed${todayFeeds.length !== 1 ? 's' : ''}` : null,
@@ -475,6 +521,10 @@ export function Tracker() {
     >
       <div className="space-y-4">
         <TodaySchedule feeds={feeds} sleep={sleep} diaper={diaper} play={play} birthDate={baby.birthDate} />
+
+        {/* One-tap logging — same tiles as the Dashboard, so a quick log
+            doesn't require leaving the Tracker to go find them. */}
+        <QuickLog />
 
         {/* Tab switcher */}
         <div className="flex bg-stone-100 rounded-2xl p-1 overflow-x-auto">
@@ -513,6 +563,20 @@ export function Tracker() {
         {/* Feed tab */}
         {tab === 'feed' && (
           <div className="space-y-3">
+            {activeFeed && (
+              <Card className="bg-marigold-50 border-marigold-200">
+                <p className="text-sm font-medium text-marigold-700 mb-1">
+                  🍼 Feed in progress · {elapsedSince(activeFeed.date)}
+                </p>
+                <p className="text-xs text-marigold-600 mb-3">
+                  Started {formatTime(activeFeed.date)} — set a manual end time here to close it out
+                  (retroactively, if you like) without waiting on the clock.
+                </p>
+                <Button variant="secondary" size="sm" onClick={() => openEditFeed(activeFeed.id)}>
+                  End this feed
+                </Button>
+              </Card>
+            )}
             <Button fullWidth onClick={() => { setEditFeed(null); setFeedModal(true) }}>
               <Plus size={15} /> Log a feed
             </Button>
@@ -542,23 +606,23 @@ export function Tracker() {
         {/* Sleep tab */}
         {tab === 'sleep' && (
           <div className="space-y-3">
-            {activeSleepSession ? (
+            {activeSleepSession && (
               <Card className="bg-periwinkle-50 border-periwinkle-200">
                 <p className="text-sm font-medium text-periwinkle-700 mb-1">
-                  {activeSleepSession.type === 'night' ? '🌙 Night sleep' : activeSleepSession.type === 'nap' ? '☀️ Nap' : '❓ Sleep'} in progress
+                  {activeSleepSession.type === 'night' ? '🌙 Night sleep' : activeSleepSession.type === 'nap' ? '☀️ Nap' : '❓ Sleep'} in progress · {elapsedSince(activeSleepSession.startTime)}
                 </p>
                 <p className="text-xs text-periwinkle-500 mb-3">
-                  Started {formatTime(activeSleepSession.startTime)}
+                  Started {formatTime(activeSleepSession.startTime)} — set a manual end time here to close it
+                  out, or use "Log sleep" below to add a different, unrelated entry.
                 </p>
                 <Button variant="secondary" size="sm" onClick={() => { setEditSleepEntry(null); setActiveSleep(activeSleepSession); setSleepModal(true) }}>
                   End session
                 </Button>
               </Card>
-            ) : (
-              <Button fullWidth onClick={() => { setEditSleepEntry(null); setActiveSleep(null); setSleepModal(true) }}>
-                <Plus size={15} /> Log sleep
-              </Button>
             )}
+            <Button fullWidth onClick={() => { setEditSleepEntry(null); setActiveSleep(null); setSleepModal(true) }}>
+              <Plus size={15} /> Log sleep
+            </Button>
             {recentSleep.length === 0 ? (
               <EmptyState icon="🌙" title="No sleep logged yet" description="Tap 'Log sleep' to start tracking." />
             ) : (
@@ -600,18 +664,23 @@ export function Tracker() {
                 columns={DIAPER_SHEET_COLUMNS}
                 onEditRow={openEditDiaper}
                 onDeleteRow={deleteDiaper}
-                rows={recentDiaper.map<SheetRow>((d) => ({
-                  id: d.id,
-                  cells: {
-                    date: format(parseISO(d.startTime), 'd MMM'),
-                    activity: <SheetChip label={DIAPER_LABELS[d.type]} color="blush" />,
-                    start: formatTime(d.startTime),
-                    end: '—',
-                    duration: '—',
-                    notes: d.notes || '—',
-                    potty: d.pottyResult ? <SheetChip label={POTTY_LABELS[d.pottyResult]} color="periwinkle" /> : '—',
-                  },
-                }))}
+                rows={recentDiaper.map<SheetRow>((d) => {
+                  const mins = d.endTime
+                    ? Math.round((new Date(d.endTime).getTime() - new Date(d.startTime).getTime()) / 60_000)
+                    : null
+                  return {
+                    id: d.id,
+                    cells: {
+                      date: format(parseISO(d.startTime), 'd MMM'),
+                      activity: <SheetChip label={DIAPER_LABELS[d.type]} color="blush" />,
+                      start: formatTime(d.startTime),
+                      end: d.endTime ? formatTime(d.endTime) : '—',
+                      duration: mins ? (mins >= 60 ? `${(mins / 60).toFixed(1)}h` : `${mins}m`) : '—',
+                      potty: d.pottyResult ? <SheetChip label={POTTY_LABELS[d.pottyResult]} color="periwinkle" /> : '—',
+                      notes: d.notes || '—',
+                    },
+                  }
+                })}
               />
             )}
           </div>
@@ -620,6 +689,19 @@ export function Tracker() {
         {/* Play tab */}
         {tab === 'play' && (
           <div className="space-y-3">
+            {activePlaySession && (
+              <Card className="bg-sage-50 border-sage-200">
+                <p className="text-sm font-medium text-sage-700 mb-1">
+                  🧸 Play in progress · {elapsedSince(activePlaySession.startTime)}
+                </p>
+                <p className="text-xs text-sage-600 mb-3">
+                  Started {formatTime(activePlaySession.startTime)} — set a manual end time here to close it out.
+                </p>
+                <Button variant="secondary" size="sm" onClick={() => openEditPlay(activePlaySession.id)}>
+                  End this play session
+                </Button>
+              </Card>
+            )}
             <Button fullWidth onClick={() => { setEditPlayEntry(null); setPlayModal(true) }}>
               <Plus size={15} /> Log play
             </Button>

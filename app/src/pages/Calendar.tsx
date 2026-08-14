@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { Input, Textarea } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
 import { RepositionControl } from '../components/media/RepositionControl'
+import { autoUploadMedia } from '../lib/mediaUpload'
 import type { CelebrationPhoto } from '../store/useAppStore'
 
 interface CalendarEvent {
@@ -113,12 +114,14 @@ function CelebrateModal({
       // Same photo, just repositioned/re-captioned — update in place rather
       // than delete+recreate, so the entry keeps its id and capturedAt.
       updateCelebration(existing.id, { note: normaliseQuotes(note), focalX, focalY })
+      autoUploadMedia('celebration', existing.id, mediaUrl, existing.driveFileId)
       onClose()
       return
     }
     if (existing) deleteCelebration(existing.id)
+    const id = uid()
     addCelebration({
-      id: uid(),
+      id,
       eventId: event!.id,
       mediaUrl,
       mediaType,
@@ -127,6 +130,7 @@ function CelebrateModal({
       focalX,
       focalY,
     })
+    autoUploadMedia('celebration', id, mediaUrl)
     onClose()
   }
 

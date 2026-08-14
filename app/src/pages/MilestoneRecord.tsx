@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
 import { RepositionControl } from '../components/media/RepositionControl'
+import { autoUploadMedia } from '../lib/mediaUpload'
 
 type Step = 'what' | 'media' | 'followup' | 'done'
 
@@ -68,6 +69,7 @@ export function MilestoneRecord() {
       week: weeks,
     }
     addRecordedMilestone(entry)
+    if (entry.mediaUrl) autoUploadMedia('milestone', entry.id, entry.mediaUrl)
     setStep('done')
   }
 

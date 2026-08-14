@@ -39,6 +39,13 @@ export interface RecordedMilestone {
   // photo got before repositioning existed, so old entries need no migration.
   focalX?: number
   focalY?: number
+  // Set once this photo/video has been uploaded to the user's Google Drive
+  // "Media" folder as its own file (original format, not base64). Undefined =
+  // never uploaded yet (or Google Sync isn't connected) — the next sync will
+  // pick it up. Presence of `driveFileId` is what makes re-syncing/re-saving
+  // this entry skip a duplicate upload.
+  driveFileId?: string
+  driveWebViewLink?: string
   followUpAnswers: Record<string, string>
   week: number
 }
@@ -109,13 +116,16 @@ export interface CelebrationPhoto {
   // (0-100, % from left/top). Undefined = center.
   focalX?: number
   focalY?: number
+  // See RecordedMilestone's fields of the same name.
+  driveFileId?: string
+  driveWebViewLink?: string
 }
 
 export interface DiaperEntry {
   id: string
   startTime: string   // ISO datetime
   endTime: string | null
-  type: 'wet' | 'dirty' | 'both' | 'unknown'
+  type: 'wet' | 'dirty' | 'both' | 'clean' | 'unknown'
   notes: string
   // Elimination communication (EC): did baby also go in the potty during this
   // change? Optional/undefined = not tracked (most households don't do EC) —
@@ -165,6 +175,11 @@ interface AppState {
   // Google Sheets/Drive integration
   googleClientId: string
   googleFolderId: string | null
+  // The "Media" subfolder (inside googleFolderId) that photos/videos are
+  // uploaded into as their own files. Kept separate from googleFolderId so
+  // it can be backfilled for accounts that connected before media upload
+  // existed, without disturbing the already-created app folder/sheet.
+  googleMediaFolderId: string | null
   googleSheetId: string | null
   googleLastSync: string | null
   googleWriteSheetName: string | null
@@ -215,6 +230,7 @@ interface AppState {
   setGoogleConfig: (cfg: {
     clientId?: string
     folderId?: string | null
+    mediaFolderId?: string | null
     sheetId?: string | null
     lastSync?: string | null
     writeSheetName?: string | null
@@ -225,6 +241,7 @@ interface AppState {
 const defaultGoogleConfig = {
   googleClientId: '',
   googleFolderId: null as string | null,
+  googleMediaFolderId: null as string | null,
   googleSheetId: null as string | null,
   googleLastSync: null as string | null,
   googleWriteSheetName: null as string | null,
@@ -376,6 +393,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           googleClientId: cfg.clientId ?? s.googleClientId,
           googleFolderId: cfg.folderId !== undefined ? cfg.folderId : s.googleFolderId,
+          googleMediaFolderId: cfg.mediaFolderId !== undefined ? cfg.mediaFolderId : s.googleMediaFolderId,
           googleSheetId: cfg.sheetId !== undefined ? cfg.sheetId : s.googleSheetId,
           googleLastSync: cfg.lastSync !== undefined ? cfg.lastSync : s.googleLastSync,
           googleWriteSheetName: cfg.writeSheetName !== undefined ? cfg.writeSheetName : s.googleWriteSheetName,
