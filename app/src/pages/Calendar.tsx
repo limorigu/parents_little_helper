@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, Textarea } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
+import { RepositionControl } from '../components/media/RepositionControl'
 import type { CelebrationPhoto } from '../store/useAppStore'
 
 interface CalendarEvent {
@@ -83,10 +84,12 @@ function CelebrateModal({
   event: CalendarEvent | null
   existing: CelebrationPhoto | undefined
 }) {
-  const { addCelebration, deleteCelebration } = useAppStore()
+  const { addCelebration, updateCelebration, deleteCelebration } = useAppStore()
   const [mediaUrl, setMediaUrl] = useState<string | null>(existing?.mediaUrl ?? null)
   const [mediaType, setMediaType] = useState<'photo' | 'video'>(existing?.mediaType ?? 'photo')
   const [note, setNote] = useState(existing?.note ?? '')
+  const [focalX, setFocalX] = useState(existing?.focalX ?? 50)
+  const [focalY, setFocalY] = useState(existing?.focalY ?? 50)
   const fileRef = useRef<HTMLInputElement>(null)
 
   if (!event) return null
@@ -98,12 +101,21 @@ function CelebrateModal({
     reader.onload = (ev) => {
       setMediaUrl(ev.target?.result as string)
       setMediaType(file.type.startsWith('video') ? 'video' : 'photo')
+      setFocalX(50)
+      setFocalY(50)
     }
     reader.readAsDataURL(file)
   }
 
   function save() {
     if (!mediaUrl) return
+    if (existing && existing.mediaUrl === mediaUrl) {
+      // Same photo, just repositioned/re-captioned — update in place rather
+      // than delete+recreate, so the entry keeps its id and capturedAt.
+      updateCelebration(existing.id, { note: normaliseQuotes(note), focalX, focalY })
+      onClose()
+      return
+    }
     if (existing) deleteCelebration(existing.id)
     addCelebration({
       id: uid(),
@@ -112,6 +124,8 @@ function CelebrateModal({
       mediaType,
       note: normaliseQuotes(note),
       capturedAt: new Date().toISOString(),
+      focalX,
+      focalY,
     })
     onClose()
   }
@@ -132,14 +146,17 @@ function CelebrateModal({
 
         {/* Media preview / upload zone */}
         {mediaUrl ? (
-          <div className="relative rounded-2xl overflow-hidden">
-            {mediaType === 'video' ? (
-              <video src={mediaUrl} controls className="w-full rounded-2xl max-h-64 object-cover" />
-            ) : (
-              <img src={mediaUrl} alt="celebration" className="w-full rounded-2xl max-h-64 object-cover" />
-            )}
+          <div className="relative">
+            <RepositionControl
+              mediaUrl={mediaUrl}
+              mediaType={mediaType}
+              focalX={focalX}
+              focalY={focalY}
+              onChange={(x, y) => { setFocalX(x); setFocalY(y) }}
+              heightClassName="max-h-64 h-64"
+            />
             <button
-              onClick={() => setMediaUrl(null)}
+              onClick={() => { setMediaUrl(null); setFocalX(50); setFocalY(50) }}
               className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1.5 hover:bg-black/70 transition-colors"
             >
               <X size={14} />
@@ -242,12 +259,12 @@ export function Calendar() {
   // sources so anywhere on the calendar that shows "the photo for this day"
   // picks up either one automatically, without milestone events needing
   // their own separate Celebrate flow.
-  function photoFor(e: CalendarEvent): { mediaUrl: string; mediaType: 'photo' | 'video'; note: string } | undefined {
+  function photoFor(e: CalendarEvent): { mediaUrl: string; mediaType: 'photo' | 'video'; note: string; focalX?: number; focalY?: number } | undefined {
     const celebration = celebrationFor(e.id)
     if (celebration) return celebration
     if (e.id.startsWith('rm-')) {
       const rm = recordedMilestones.find((r) => r.id === e.id.slice(3))
-      if (rm?.mediaUrl) return { mediaUrl: rm.mediaUrl, mediaType: rm.mediaType ?? 'photo', note: rm.notes }
+      if (rm?.mediaUrl) return { mediaUrl: rm.mediaUrl, mediaType: rm.mediaType ?? 'photo', note: rm.notes, focalX: rm.focalX, focalY: rm.focalY }
     }
     return undefined
   }
@@ -330,9 +347,19 @@ export function Calendar() {
                       {photo && (
                         <div className="relative rounded-xl overflow-hidden mb-3 -mt-1">
                           {photo.mediaType === 'video' ? (
-                            <video src={photo.mediaUrl} controls className="w-full max-h-48 object-cover rounded-xl" />
+                            <video
+                              src={photo.mediaUrl}
+                              controls
+                              className="w-full max-h-48 object-cover rounded-xl"
+                              style={{ objectPosition: `${photo.focalX ?? 50}% ${photo.focalY ?? 50}%` }}
+                            />
                           ) : (
-                            <img src={photo.mediaUrl} alt="celebration" className="w-full max-h-48 object-cover rounded-xl" />
+                            <img
+                              src={photo.mediaUrl}
+                              alt="celebration"
+                              className="w-full max-h-48 object-cover rounded-xl"
+                              style={{ objectPosition: `${photo.focalX ?? 50}% ${photo.focalY ?? 50}%` }}
+                            />
                           )}
                         </div>
                       )}
@@ -388,7 +415,12 @@ export function Calendar() {
                       <p className="text-xs text-stone-400">{format(parseISO(e.date), 'd MMM yyyy')}</p>
                     </div>
                     {photo && (
-                      <img src={photo.mediaUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                      <img
+                        src={photo.mediaUrl}
+                        alt=""
+                        className="w-8 h-8 rounded-lg object-cover shrink-0"
+                        style={{ objectPosition: `${photo.focalX ?? 50}% ${photo.focalY ?? 50}%` }}
+                      />
                     )}
                     {e.isSpecial && !photo && (
                       <button

@@ -88,9 +88,19 @@ export function Dashboard() {
               {specialTodayPhoto && (
                 <div className="mt-3 rounded-xl overflow-hidden">
                   {specialTodayPhoto.mediaType === 'video' ? (
-                    <video src={specialTodayPhoto.mediaUrl} controls className="w-full max-h-56 object-cover rounded-xl" />
+                    <video
+                      src={specialTodayPhoto.mediaUrl}
+                      controls
+                      className="w-full max-h-56 object-cover rounded-xl"
+                      style={{ objectPosition: `${specialTodayPhoto.focalX ?? 50}% ${specialTodayPhoto.focalY ?? 50}%` }}
+                    />
                   ) : (
-                    <img src={specialTodayPhoto.mediaUrl} alt="celebration" className="w-full max-h-56 object-cover rounded-xl" />
+                    <img
+                      src={specialTodayPhoto.mediaUrl}
+                      alt="celebration"
+                      className="w-full max-h-56 object-cover rounded-xl"
+                      style={{ objectPosition: `${specialTodayPhoto.focalX ?? 50}% ${specialTodayPhoto.focalY ?? 50}%` }}
+                    />
                   )}
                 </div>
               )}
@@ -225,6 +235,7 @@ export function Dashboard() {
                   src={recentMilestone.mediaUrl}
                   alt={recentMilestone.title}
                   className="w-16 h-16 rounded-xl object-cover shrink-0"
+                  style={{ objectPosition: `${recentMilestone.focalX ?? 50}% ${recentMilestone.focalY ?? 50}%` }}
                 />
               )}
               <div className="flex-1 min-w-0">

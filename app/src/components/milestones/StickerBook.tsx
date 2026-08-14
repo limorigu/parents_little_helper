@@ -45,7 +45,12 @@ export function StickerBook({ recordedMilestones }: StickerBookProps) {
               title={r.title}
             >
               {r.mediaUrl ? (
-                <img src={r.mediaUrl} alt={r.title} className="w-full h-full rounded-full object-cover" />
+                <img
+                  src={r.mediaUrl}
+                  alt={r.title}
+                  className="w-full h-full rounded-full object-cover"
+                  style={{ objectPosition: `${r.focalX ?? 50}% ${r.focalY ?? 50}%` }}
+                />
               ) : (
                 <span>{getCategoryIcon(category)}</span>
               )}

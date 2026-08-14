@@ -8,6 +8,7 @@ import { MILESTONE_FOLLOW_UP_QUESTIONS } from '../lib/activities'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
+import { RepositionControl } from '../components/media/RepositionControl'
 
 type Step = 'what' | 'media' | 'followup' | 'done'
 
@@ -26,6 +27,8 @@ export function MilestoneRecord() {
   const [date, setDate] = useState(today())
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
   const [mediaType, setMediaType] = useState<'photo' | 'video' | null>(null)
+  const [focalX, setFocalX] = useState(50)
+  const [focalY, setFocalY] = useState(50)
   const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, string>>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -44,6 +47,8 @@ export function MilestoneRecord() {
     reader.onload = (ev) => {
       setMediaUrl(ev.target?.result as string)
       setMediaType(file.type.startsWith('video') ? 'video' : 'photo')
+      setFocalX(50)
+      setFocalY(50)
     }
     reader.readAsDataURL(file)
   }
@@ -57,6 +62,8 @@ export function MilestoneRecord() {
       notes,
       mediaUrl,
       mediaType,
+      focalX,
+      focalY,
       followUpAnswers,
       week: weeks,
     }
@@ -77,7 +84,7 @@ export function MilestoneRecord() {
           </div>
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => navigate('/milestones')}>See all milestones</Button>
-            <Button onClick={() => { setStep('what'); setMilestoneId(null); setCustomTitle(''); setNotes(''); setMediaUrl(null); setFollowUpAnswers({}) }}>
+            <Button onClick={() => { setStep('what'); setMilestoneId(null); setCustomTitle(''); setNotes(''); setMediaUrl(null); setFocalX(50); setFocalY(50); setFollowUpAnswers({}) }}>
               Record another
             </Button>
           </div>
@@ -149,14 +156,17 @@ export function MilestoneRecord() {
             <p className="text-sm text-stone-500">Add a photo or video of the moment (optional but wonderful).</p>
 
             {mediaUrl ? (
-              <div className="relative rounded-2xl overflow-hidden">
-                {mediaType === 'video' ? (
-                  <video src={mediaUrl} controls className="w-full rounded-2xl max-h-72 object-cover" />
-                ) : (
-                  <img src={mediaUrl} alt="moment" className="w-full rounded-2xl max-h-72 object-cover" />
-                )}
+              <div className="relative">
+                <RepositionControl
+                  mediaUrl={mediaUrl}
+                  mediaType={mediaType ?? 'photo'}
+                  focalX={focalX}
+                  focalY={focalY}
+                  onChange={(x, y) => { setFocalX(x); setFocalY(y) }}
+                  heightClassName="max-h-72 h-72"
+                />
                 <button
-                  onClick={() => { setMediaUrl(null); setMediaType(null) }}
+                  onClick={() => { setMediaUrl(null); setMediaType(null); setFocalX(50); setFocalY(50) }}
                   className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1"
                 >
                   <X size={14} />

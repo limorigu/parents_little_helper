@@ -34,6 +34,11 @@ export interface RecordedMilestone {
   notes: string
   mediaUrl: string | null // base64 or blob URL
   mediaType: 'photo' | 'video' | null
+  // Focal point for `object-position` when mediaUrl is cropped to a frame
+  // (0-100, % from left/top). Undefined = center, matching the crop every
+  // photo got before repositioning existed, so old entries need no migration.
+  focalX?: number
+  focalY?: number
   followUpAnswers: Record<string, string>
   week: number
 }
@@ -100,6 +105,10 @@ export interface CelebrationPhoto {
   mediaType: 'photo' | 'video'
   note: string
   capturedAt: string // ISO
+  // Focal point for `object-position` when mediaUrl is cropped to a frame
+  // (0-100, % from left/top). Undefined = center.
+  focalX?: number
+  focalY?: number
 }
 
 export interface DiaperEntry {
@@ -200,6 +209,7 @@ interface AppState {
 
   setLocalActivities: (activities: LocalActivity[], fetchedAt: string) => void
   addCelebration: (c: CelebrationPhoto) => void
+  updateCelebration: (id: string, updates: Partial<CelebrationPhoto>) => void
   deleteCelebration: (id: string) => void
 
   setGoogleConfig: (cfg: {
@@ -355,6 +365,10 @@ export const useAppStore = create<AppState>()(
 
       addCelebration: (c) =>
         set((s) => ({ celebrations: [c, ...s.celebrations] })),
+      updateCelebration: (id, updates) =>
+        set((s) => ({
+          celebrations: s.celebrations.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+        })),
       deleteCelebration: (id) =>
         set((s) => ({ celebrations: s.celebrations.filter((c) => c.id !== id) })),
 

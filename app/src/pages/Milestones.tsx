@@ -8,9 +8,40 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Modal } from '../components/ui/Modal'
 import { PageShell } from '../components/layout/PageShell'
 import { StickerBook } from '../components/milestones/StickerBook'
-import type { MilestoneCategory } from '../store/useAppStore'
+import { RepositionControl } from '../components/media/RepositionControl'
+import type { MilestoneCategory, RecordedMilestone } from '../store/useAppStore'
+
+function RepositionMilestoneModal({ milestone, onClose }: { milestone: RecordedMilestone | null; onClose: () => void }) {
+  const { updateRecordedMilestone } = useAppStore()
+  const [focalX, setFocalX] = useState(milestone?.focalX ?? 50)
+  const [focalY, setFocalY] = useState(milestone?.focalY ?? 50)
+
+  if (!milestone?.mediaUrl) return null
+
+  function save() {
+    updateRecordedMilestone(milestone!.id, { focalX, focalY })
+    onClose()
+  }
+
+  return (
+    <Modal open={!!milestone} onClose={onClose} title={`Reposition: ${milestone.title}`}>
+      <div className="space-y-4">
+        <RepositionControl
+          mediaUrl={milestone.mediaUrl}
+          mediaType={milestone.mediaType ?? 'photo'}
+          focalX={focalX}
+          focalY={focalY}
+          onChange={(x, y) => { setFocalX(x); setFocalY(y) }}
+          heightClassName="h-64"
+        />
+        <Button fullWidth onClick={save}>Save position</Button>
+      </div>
+    </Modal>
+  )
+}
 
 const CATEGORY_FILTERS: Array<{ value: MilestoneCategory | 'all' | 'overachiever'; label: string }> = [
   { value: 'all', label: 'All' },
@@ -83,6 +114,7 @@ export function Milestones() {
   const weeks = getBabyAgeWeeks(baby.birthDate)
   const [filter, setFilter] = useState<MilestoneCategory | 'all' | 'overachiever'>('all')
   const [showUpcoming, setShowUpcoming] = useState(false)
+  const [repositioning, setRepositioning] = useState<RecordedMilestone | null>(null)
 
   const current = getMilestonesForWeek(weeks)
   const upcoming = getUpcomingMilestones(weeks)
@@ -167,7 +199,18 @@ export function Milestones() {
                 return (
                   <Card key={r.id} padding="sm" className="flex items-center gap-3">
                     {r.mediaUrl && (
-                      <img src={r.mediaUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                      <button
+                        onClick={() => setRepositioning(r)}
+                        title="Reposition photo"
+                        className="shrink-0"
+                      >
+                        <img
+                          src={r.mediaUrl}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover shrink-0"
+                          style={{ objectPosition: `${r.focalX ?? 50}% ${r.focalY ?? 50}%` }}
+                        />
+                      </button>
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-700 truncate">{r.title}</p>
@@ -183,6 +226,12 @@ export function Milestones() {
           </div>
         )}
       </div>
+
+      <RepositionMilestoneModal
+        key={repositioning?.id}
+        milestone={repositioning}
+        onClose={() => setRepositioning(null)}
+      />
     </PageShell>
   )
 }
