@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { formatTime, today, uid, toDateTimeInput, localDayKey, defaultEndFor, elapsedSince } from '../lib/utils'
+import { formatTime, today, uid, toDateTimeInput, localDayKey, defaultEndFor, elapsedSince, getBabyAgeWeeks } from '../lib/utils'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -12,7 +12,20 @@ import { SheetTable, SheetChip, type SheetColumn, type SheetRow } from '../compo
 import { PageShell } from '../components/layout/PageShell'
 import { TrackerInsights } from '../components/tracker/TrackerInsights'
 import { TodaySchedule } from '../components/tracker/TodaySchedule'
+import { NextRecordCard } from '../components/tracker/NextRecordCard'
+import { ECNudgeCard } from '../components/tracker/ECNudgeCard'
 import { QuickLog } from '../components/dashboard/QuickLog'
+import {
+  getTimeBucket,
+  computeGapStats,
+  computeSessionGapStats,
+  getExpectedGap,
+  computeSequencesFrom,
+  computeECStats,
+  computeECTriggerStats,
+  minutesSinceLastWake,
+  minutesSinceLastFeed,
+} from '../lib/insights'
 import type { FeedEntry, SleepEntry, DiaperEntry, PlayEntry } from '../store/useAppStore'
 
 const SHEET_COLUMNS: SheetColumn[] = [
@@ -514,6 +527,39 @@ export function Tracker() {
     todayDiapers.length ? `${todayDiapers.length} nappy${todayDiapers.length !== 1 ? ' changes' : ' change'}` : null,
   ].filter(Boolean)
 
+  // "Next record" estimates — own historical gaps (bucketed by time of day) plus,
+  // where this app actually has a research-backed reference (Feed, Sleep), an
+  // age-banded literature range. Nappy/Play are shown with an explicit "no
+  // benchmark available" note rather than a fabricated one.
+  const weeks = getBabyAgeWeeks(baby.birthDate)
+  const nowBucket = getTimeBucket(new Date().getHours())
+
+  const feedGapStats = useMemo(() => computeGapStats(feeds.map((f) => parseISO(f.date))), [feeds])
+  const diaperGapStats = useMemo(() => computeGapStats(diaper.map((d) => parseISO(d.startTime))), [diaper])
+  const sleepGapStats = useMemo(() => computeSessionGapStats(sleep), [sleep])
+  const playGapStats = useMemo(() => computeSessionGapStats(play), [play])
+
+  const expectedFeedGap = useMemo(() => getExpectedGap('Feed', weeks), [weeks])
+  const expectedSleepGap = useMemo(() => getExpectedGap('Sleep', weeks), [weeks])
+  const expectedNappyGap = useMemo(() => getExpectedGap('Nappy', weeks), [weeks])
+  const expectedPlayGap = useMemo(() => getExpectedGap('Play', weeks), [weeks])
+
+  const feedSequenceHint = useMemo(() => computeSequencesFrom(feeds, sleep, diaper, play, 'Feed')[nowBucket], [feeds, sleep, diaper, play, nowBucket])
+  const sleepSequenceHint = useMemo(() => computeSequencesFrom(feeds, sleep, diaper, play, 'Sleep')[nowBucket], [feeds, sleep, diaper, play, nowBucket])
+  const nappySequenceHint = useMemo(() => computeSequencesFrom(feeds, sleep, diaper, play, 'Nappy')[nowBucket], [feeds, sleep, diaper, play, nowBucket])
+  const playSequenceHint = useMemo(() => computeSequencesFrom(feeds, sleep, diaper, play, 'Play')[nowBucket], [feeds, sleep, diaper, play, nowBucket])
+
+  // EC (elimination communication) nudges — only surfaced once a household has
+  // actually logged at least one potty catch/attempt, so non-EC households
+  // never see it.
+  const practicesEC = useMemo(() => diaper.some((d) => d.pottyResult), [diaper])
+  const peeStats = useMemo(() => computeECStats(diaper, 'pee'), [diaper])
+  const poopStats = useMemo(() => computeECStats(diaper, 'poop'), [diaper])
+  const peeTriggerStats = useMemo(() => computeECTriggerStats(diaper, sleep, feeds, 'pee'), [diaper, sleep, feeds])
+  const poopTriggerStats = useMemo(() => computeECTriggerStats(diaper, sleep, feeds, 'poop'), [diaper, sleep, feeds])
+  const sinceWakeMinutes = minutesSinceLastWake(sleep)
+  const sinceFeedMinutes = minutesSinceLastFeed(feeds)
+
   return (
     <PageShell
       title="Tracker"
@@ -580,6 +626,14 @@ export function Tracker() {
             <Button fullWidth onClick={() => { setEditFeed(null); setFeedModal(true) }}>
               <Plus size={15} /> Log a feed
             </Button>
+            <NextRecordCard
+              activityType="Feed"
+              label="feed"
+              gapStats={feedGapStats}
+              expected={expectedFeedGap}
+              sequenceHint={feedSequenceHint}
+              nowBucket={nowBucket}
+            />
             {recentFeeds.length === 0 ? (
               <EmptyState icon="🍼" title="No feeds logged yet" description="Tap 'Log a feed' to start tracking." />
             ) : (
@@ -623,6 +677,14 @@ export function Tracker() {
             <Button fullWidth onClick={() => { setEditSleepEntry(null); setActiveSleep(null); setSleepModal(true) }}>
               <Plus size={15} /> Log sleep
             </Button>
+            <NextRecordCard
+              activityType="Sleep"
+              label="sleep"
+              gapStats={sleepGapStats}
+              expected={expectedSleepGap}
+              sequenceHint={sleepSequenceHint}
+              nowBucket={nowBucket}
+            />
             {recentSleep.length === 0 ? (
               <EmptyState icon="🌙" title="No sleep logged yet" description="Tap 'Log sleep' to start tracking." />
             ) : (
@@ -657,6 +719,34 @@ export function Tracker() {
             <Button fullWidth onClick={() => { setEditDiaperEntry(null); setDiaperModal(true) }}>
               <Plus size={15} /> Log nappy change
             </Button>
+            <NextRecordCard
+              activityType="Nappy"
+              label="nappy change"
+              gapStats={diaperGapStats}
+              expected={expectedNappyGap}
+              sequenceHint={nappySequenceHint}
+              nowBucket={nowBucket}
+            />
+            {practicesEC && (
+              <>
+                <ECNudgeCard
+                  outcome="pee"
+                  ecStats={peeStats}
+                  triggerStats={peeTriggerStats}
+                  minutesSinceWake={sinceWakeMinutes}
+                  minutesSinceFeed={sinceFeedMinutes}
+                  nowBucket={nowBucket}
+                />
+                <ECNudgeCard
+                  outcome="poop"
+                  ecStats={poopStats}
+                  triggerStats={poopTriggerStats}
+                  minutesSinceWake={sinceWakeMinutes}
+                  minutesSinceFeed={sinceFeedMinutes}
+                  nowBucket={nowBucket}
+                />
+              </>
+            )}
             {recentDiaper.length === 0 ? (
               <EmptyState icon="🧷" title="No nappy changes logged yet" description="Tap above to start tracking." />
             ) : (
@@ -705,6 +795,14 @@ export function Tracker() {
             <Button fullWidth onClick={() => { setEditPlayEntry(null); setPlayModal(true) }}>
               <Plus size={15} /> Log play
             </Button>
+            <NextRecordCard
+              activityType="Play"
+              label="play session"
+              gapStats={playGapStats}
+              expected={expectedPlayGap}
+              sequenceHint={playSequenceHint}
+              nowBucket={nowBucket}
+            />
             {recentPlay.length === 0 ? (
               <EmptyState icon="🧸" title="No play sessions logged yet" description="Tap 'Log play' to start tracking." />
             ) : (

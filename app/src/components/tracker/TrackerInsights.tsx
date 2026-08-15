@@ -20,17 +20,11 @@ import {
   ACTIVITY_HEX,
   ACTIVITY_EMOJI,
   BUCKETS,
+  LEVEL_STYLES,
   type ActivityType,
-  type RecommendationLevel,
 } from '../../lib/insights'
 
 type DayVizStyle = 'grid' | 'timeline' | 'clock'
-
-const LEVEL_STYLES: Record<RecommendationLevel, { bg: string; border: string; text: string; label: string }> = {
-  good: { bg: 'bg-sage-50', border: 'border-sage-200', text: 'text-sage-700', label: 'On track' },
-  watch: { bg: 'bg-blush-50', border: 'border-blush-200', text: 'text-blush-600', label: 'Worth a look' },
-  info: { bg: 'bg-marigold-50', border: 'border-marigold-200', text: 'text-marigold-600', label: 'Heads up' },
-}
 
 function fmtMinutes(min: number): string {
   if (min < 60) return `${Math.round(min)}m`
