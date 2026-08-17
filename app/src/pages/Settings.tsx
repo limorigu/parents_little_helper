@@ -260,7 +260,7 @@ function LanguagesSection() {
 // upcoming Drive-based backup (Phase 2) will build on top of the same
 // buildBackup/restoreFromBackup helpers.
 
-function BackupSection() {
+function BackupSection({ isOnboarding = false }: { isOnboarding?: boolean }) {
   const { baby } = useAppStore()
   const [copied, setCopied] = useState(false)
   const [pasteText, setPasteText] = useState('')
@@ -332,37 +332,55 @@ function BackupSection() {
       <div className="flex items-center gap-3 mb-4">
         <Download size={18} className="text-periwinkle-500 shrink-0" />
         <div>
-          <h2 className="font-display text-base text-stone-700">Backup & Restore</h2>
-          <p className="text-xs text-stone-400">Move everything to another device, or save a snapshot</p>
+          <h2 className="font-display text-base text-stone-700">
+            {isOnboarding ? 'Already have a backup?' : 'Backup & Restore'}
+          </h2>
+          <p className="text-xs text-stone-400">
+            {isOnboarding
+              ? 'Restore a backup from another device instead of starting from scratch'
+              : 'Move everything to another device, or save a snapshot'}
+          </p>
         </div>
       </div>
 
       <div className="space-y-4">
-        <div className="bg-cream-100 rounded-2xl p-4 text-xs text-stone-500 leading-relaxed">
-          A backup includes everything on this device — profile, settings, every tracked record,
-          milestones, and photos/videos — as one file. Restoring it on another device (or
-          browser) replaces that device's data with this snapshot.
-        </div>
-
-        <div>
-          <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-2">Export from this device</p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" onClick={handleDownload}>
-              <Download size={14} /> Download file
-            </Button>
-            <Button variant="secondary" size="sm" onClick={handleCopy}>
-              <Copy size={14} /> {copied ? 'Copied!' : 'Copy to clipboard'}
-            </Button>
+        {!isOnboarding && (
+          <div className="bg-cream-100 rounded-2xl p-4 text-xs text-stone-500 leading-relaxed">
+            A backup includes everything on this device — profile, settings, every tracked record,
+            milestones, and photos/videos — as one file. Restoring it on another device (or
+            browser) replaces that device's data with this snapshot.
           </div>
-          <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
-            On an iPhone + Mac signed into the same Apple ID, copying here and pasting into the
-            paste box below on the other device often works directly via Universal Clipboard —
-            no file transfer needed.
-          </p>
-        </div>
+        )}
 
-        <div className="pt-3 border-t border-stone-100">
-          <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-2">Restore onto this device</p>
+        {!isOnboarding && (
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-2">Export from this device</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={handleDownload}>
+                <Download size={14} /> Download file
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleCopy}>
+                <Copy size={14} /> {copied ? 'Copied!' : 'Copy to clipboard'}
+              </Button>
+            </div>
+            <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
+              On an iPhone + Mac signed into the same Apple ID, copying here and pasting into the
+              paste box below on the other device often works directly via Universal Clipboard —
+              no file transfer needed.
+            </p>
+          </div>
+        )}
+
+        <div className={isOnboarding ? '' : 'pt-3 border-t border-stone-100'}>
+          {!isOnboarding && (
+            <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-2">Restore onto this device</p>
+          )}
+          {isOnboarding && (
+            <p className="text-xs text-stone-500 leading-relaxed mb-2">
+              On your other device, open Settings → Backup & Restore → Download file (or Copy to
+              clipboard), then bring that file — or pasted text — here.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2 mb-3">
             <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
               <Upload size={14} /> Choose backup file…
@@ -1590,7 +1608,10 @@ export function Settings() {
             <span className="font-display font-black text-stone-800 text-3xl block leading-tight">Little Helper</span>
             <p className="text-stone-500 font-bold text-sm mt-3">Let's get to know your little one.</p>
           </div>
-          <ProfileSection form={form} set={set} onSave={save} isOnboarding />
+          <div className="space-y-4">
+            <ProfileSection form={form} set={set} onSave={save} isOnboarding />
+            <BackupSection isOnboarding />
+          </div>
         </div>
       ) : (
         <PageShell title="Settings" subtitle="Profile, preferences & sync">
