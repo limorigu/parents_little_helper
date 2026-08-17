@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
-import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2, Moon, MapPin, Languages } from 'lucide-react'
+import { Cloud, CloudOff, RefreshCw, Download, Upload, Copy, AlertCircle, AlertTriangle, CheckCircle2, Moon, MapPin, Languages } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { Input, Textarea } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 import { PageShell } from '../components/layout/PageShell'
 import { getBabyAgeLabel, normaliseQuotes, today, uid } from '../lib/utils'
 import { SUPPORTED_LANGUAGES } from '../lib/vocab'
@@ -22,8 +23,12 @@ import {
   listSheetTabs,
   createSheetTab,
   MissingDateError,
+  uploadBackupJson,
+  findBackupFile,
+  downloadDriveFileText,
 } from '../lib/googleSync'
 import type { ImportedData, MediaUploadResult } from '../lib/googleSync'
+import { buildBackup, backupFilename, parseBackup, summarizeBackup, restoreFromBackup, backupsDiffer, type BackupFile } from '../lib/backup'
 
 // ── Baby profile form ────────────────────────────────────────────────────────
 
@@ -247,22 +252,200 @@ function LanguagesSection() {
   )
 }
 
+// ── Backup & Restore section ──────────────────────────────────────────────────
+// A snapshot mechanism (export everything now / replace everything now) for
+// moving data between devices/browsers, or just keeping a manual save point.
+// This is deliberately independent of the Google Sync section below — it
+// works even for households that never connect Google at all — though the
+// upcoming Drive-based backup (Phase 2) will build on top of the same
+// buildBackup/restoreFromBackup helpers.
+
+function BackupSection() {
+  const { baby } = useAppStore()
+  const [copied, setCopied] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+  const [pendingRestore, setPendingRestore] = useState<{ backup: BackupFile; source: string } | null>(null)
+  const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleDownload() {
+    try {
+      const backup = buildBackup()
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = backupFilename(baby.name)
+      a.click()
+      URL.revokeObjectURL(url)
+      setError('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not build a backup.')
+    }
+  }
+
+  async function handleCopy() {
+    try {
+      const backup = buildBackup()
+      await navigator.clipboard.writeText(JSON.stringify(backup))
+      setCopied(true)
+      setError('')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not copy a backup — your browser may block clipboard access here.')
+    }
+  }
+
+  function stageRestore(text: string, source: string) {
+    try {
+      const backup = parseBackup(text)
+      setPendingRestore({ backup, source })
+      setError('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that as a backup.')
+    }
+  }
+
+  function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => stageRestore(String(reader.result ?? ''), `"${file.name}"`)
+    reader.onerror = () => setError('Could not read that file.')
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  function confirmRestore() {
+    if (!pendingRestore) return
+    restoreFromBackup(pendingRestore.backup)
+    setPendingRestore(null)
+    // A full reload rather than trusting every already-mounted component to
+    // notice the wholesale state swap — some component-local state (e.g. a
+    // form field seeded from the store only at mount) wouldn't otherwise
+    // pick up the change reliably.
+    window.location.reload()
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-4">
+        <Download size={18} className="text-periwinkle-500 shrink-0" />
+        <div>
+          <h2 className="font-display text-base text-stone-700">Backup & Restore</h2>
+          <p className="text-xs text-stone-400">Move everything to another device, or save a snapshot</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="bg-cream-100 rounded-2xl p-4 text-xs text-stone-500 leading-relaxed">
+          A backup includes everything on this device — profile, settings, every tracked record,
+          milestones, and photos/videos — as one file. Restoring it on another device (or
+          browser) replaces that device's data with this snapshot.
+        </div>
+
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-2">Export from this device</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" onClick={handleDownload}>
+              <Download size={14} /> Download file
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleCopy}>
+              <Copy size={14} /> {copied ? 'Copied!' : 'Copy to clipboard'}
+            </Button>
+          </div>
+          <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
+            On an iPhone + Mac signed into the same Apple ID, copying here and pasting into the
+            paste box below on the other device often works directly via Universal Clipboard —
+            no file transfer needed.
+          </p>
+        </div>
+
+        <div className="pt-3 border-t border-stone-100">
+          <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-2">Restore onto this device</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={14} /> Choose backup file…
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleFileChosen}
+            />
+          </div>
+          <Textarea
+            label="…or paste backup text here"
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={3}
+            placeholder="Paste the full backup JSON…"
+          />
+          {pasteText.trim() && (
+            <Button size="sm" className="mt-2" onClick={() => stageRestore(pasteText, 'the pasted text')}>
+              Preview this backup
+            </Button>
+          )}
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 bg-blush-50 border border-blush-200 rounded-xl p-3 text-sm text-blush-700">
+            <AlertCircle size={15} className="shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
+
+      <Modal open={!!pendingRestore} onClose={() => setPendingRestore(null)} title="Restore this backup?">
+        {pendingRestore && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 bg-blush-50 border border-blush-200 rounded-xl p-3 text-sm text-blush-700">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <p>
+                This replaces everything currently on this device with the backup below. There's
+                no undo — anything logged here since that backup was taken (and not also in it)
+                will be gone.
+              </p>
+            </div>
+            <div className="bg-cream-100 rounded-2xl p-4 space-y-1 text-sm text-stone-600">
+              <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-1">
+                From {pendingRestore.source}
+              </p>
+              {summarizeBackup(pendingRestore.backup).map((line) => <p key={line}>{line}</p>)}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" fullWidth onClick={() => setPendingRestore(null)}>Cancel</Button>
+              <Button variant="danger" fullWidth onClick={confirmRestore}>Restore & replace</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </Card>
+  )
+}
+
 // ── Google Sync section ───────────────────────────────────────────────────────
 
-type SyncStatus = 'idle' | 'connecting' | 'syncing' | 'importing' | 'previewing' | 'error' | 'success'
+type SyncStatus = 'idle' | 'connecting' | 'syncing' | 'importing' | 'previewing' | 'backing-up' | 'restoring' | 'error' | 'success'
 
 function GoogleSection() {
   const store = useAppStore()
   const {
-    baby, googleClientId, googleFolderId, googleMediaFolderId, googleSheetId, googleLastSync, googleWriteSheetName,
-    googleParentFolderId, setGoogleConfig, feeds, sleep, diaper, play, growth, recordedMilestones, doctorVisits,
-    celebrations, addFeed, addSleep, addDiaper, addPlay, updateRecordedMilestone, updateCelebration,
+    baby, googleClientId, googleFolderId, googleMediaFolderId, googleSheetId, googleLastSync, googleLastFullBackup,
+    googleWriteSheetName, googleParentFolderId, setGoogleConfig, feeds, sleep, diaper, play, growth,
+    recordedMilestones, doctorVisits, celebrations, addFeed, addSleep, addDiaper, addPlay, updateRecordedMilestone,
+    updateCelebration,
   } = store
 
   const [clientIdInput, setClientIdInput] = useState(googleClientId)
   const [parentFolderInput, setParentFolderInput] = useState(googleParentFolderId ?? '')
   const [status, setStatus] = useState<SyncStatus>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  // Multiple actions in this section (Sheets/media sync, full Drive backup)
+  // both land on status === 'success', so the success banner's wording is
+  // driven by whichever one actually ran, rather than guessing from timing.
+  const [successMessage, setSuccessMessage] = useState('Synced successfully.')
 
   // Import form state
   const [importUrl, setImportUrl] = useState('')
@@ -283,6 +466,19 @@ function GoogleSection() {
   const [writeExisting, setWriteExisting] = useState('Activity Log')
   const [writeNewName, setWriteNewName] = useState('')
   const [writeTargetSaved, setWriteTargetSaved] = useState(false)
+
+  // Full-backup-to-Drive form state — separate from the Activity Log sync
+  // above: this is the lossless whole-app snapshot (see src/lib/backup.ts),
+  // stored as its own JSON file, for cloning state onto another device.
+  const [showDriveBackup, setShowDriveBackup] = useState(false)
+  const [pendingDriveRestore, setPendingDriveRestore] = useState<{ backup: BackupFile; source: string } | null>(null)
+  // Set only when the Drive backup and this device's live data actually
+  // disagree (see backupsDiffer) — i.e. there's a real decision to make,
+  // not just a routine "replace with an identical copy." conflictChoice
+  // starts at null (no default) so the user has to actively pick a side
+  // rather than accidentally keeping a pre-selected option.
+  const [pendingConflict, setPendingConflict] = useState<{ local: BackupFile; remote: BackupFile } | null>(null)
+  const [conflictChoice, setConflictChoice] = useState<'local' | 'remote' | null>(null)
 
   // Derive connection from in-memory token (re-checks on each render)
   const connected = isSignedIn()
@@ -347,6 +543,7 @@ function GoogleSection() {
       })
       applyUploads(uploads)
       setGoogleConfig({ lastSync: new Date().toISOString() })
+      setSuccessMessage('Synced successfully.')
       setStatus('success')
       setTimeout(() => setStatus('idle'), 3000)
     } catch (e) {
@@ -381,6 +578,7 @@ function GoogleSection() {
       })
       applyUploads(uploads)
       setGoogleConfig({ lastSync: new Date().toISOString() })
+      setSuccessMessage('Synced successfully.')
       setStatus('success')
       setTimeout(() => setStatus('idle'), 3000)
     } catch (e) {
@@ -553,8 +751,120 @@ function GoogleSection() {
     }
   }
 
+  /** Push a full lossless state snapshot to Drive, overwriting any earlier one there. */
+  async function handleBackupToDrive() {
+    const token = await ensureToken()
+    if (!token) return
+    setStatus('backing-up')
+    setErrorMsg('')
+    try {
+      const { folderId } = await ensureDriveAndSheet(token)
+      const backup = buildBackup()
+      await uploadBackupJson(token, folderId, JSON.stringify(backup))
+      setGoogleConfig({ lastFullBackup: new Date().toISOString() })
+      setSuccessMessage('Backed up to Drive successfully.')
+      setStatus('success')
+      setTimeout(() => setStatus('idle'), 3000)
+    } catch (e) {
+      err(e instanceof Error ? e.message : 'Could not back up to Drive.')
+    }
+  }
+
+  /**
+   * Fetch whatever full-backup snapshot is currently in Drive. If it's
+   * identical to what's already on this device there's nothing to decide —
+   * say so and stop. If this device has no local data yet (brand new
+   * device), there's nothing to conflict with either — go straight to the
+   * plain confirm-before-restore, same UX as the local paste-restore. Only
+   * when the two genuinely disagree does this route into conflict
+   * resolution instead of silently overwriting one side.
+   */
+  async function handleFetchDriveBackup() {
+    const token = await ensureToken()
+    if (!token) return
+    setStatus('restoring')
+    setErrorMsg('')
+    try {
+      const { folderId } = await ensureDriveAndSheet(token)
+      const file = await findBackupFile(token, folderId)
+      if (!file) {
+        err('No backup found in this Drive folder yet — use "Backup to Drive" first, from whichever device has the data you want to keep.')
+        return
+      }
+      const text = await downloadDriveFileText(token, file.id)
+      const remote = parseBackup(text)
+
+      let local: BackupFile | null = null
+      try {
+        local = buildBackup()
+      } catch {
+        local = null
+      }
+
+      if (!local) {
+        setPendingDriveRestore({ backup: remote, source: 'Google Drive' })
+      } else if (backupsDiffer(local, remote)) {
+        setConflictChoice(null)
+        setPendingConflict({ local, remote })
+      } else {
+        setSuccessMessage('This device already matches the latest Drive backup — nothing to restore.')
+        setStatus('success')
+        setTimeout(() => setStatus('idle'), 3000)
+        return
+      }
+      setStatus('idle')
+    } catch (e) {
+      err(e instanceof Error ? e.message : 'Could not read the Drive backup.')
+    }
+  }
+
+  function confirmDriveRestore() {
+    if (!pendingDriveRestore) return
+    restoreFromBackup(pendingDriveRestore.backup)
+    setPendingDriveRestore(null)
+    window.location.reload()
+  }
+
+  /**
+   * Resolve a detected conflict per the user's choice: either keep this
+   * device's data (and push it to Drive so the other side catches up next
+   * time it restores), or accept the Drive backup (and replace this
+   * device's data with it, same as the no-conflict restore path).
+   */
+  async function confirmConflictResolution() {
+    if (!pendingConflict || !conflictChoice) return
+    if (conflictChoice === 'remote') {
+      restoreFromBackup(pendingConflict.remote)
+      setPendingConflict(null)
+      window.location.reload()
+      return
+    }
+    // Keep this device's data — the two sides still disagree until Drive
+    // also has this version, so push it there now rather than leaving the
+    // conflict to resurface on the next restore attempt.
+    setStatus('backing-up')
+    setErrorMsg('')
+    try {
+      const token = await ensureToken()
+      if (!token) return
+      const { folderId } = await ensureDriveAndSheet(token)
+      await uploadBackupJson(token, folderId, JSON.stringify(pendingConflict.local))
+      setGoogleConfig({ lastFullBackup: new Date().toISOString() })
+      setPendingConflict(null)
+      setConflictChoice(null)
+      setSuccessMessage("Kept this device's data, and updated the Drive backup to match.")
+      setStatus('success')
+      setTimeout(() => setStatus('idle'), 3000)
+    } catch (e) {
+      err(e instanceof Error ? e.message : 'Could not update the Drive backup.')
+    }
+  }
+
   const fmtLastSync = googleLastSync
     ? new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(googleLastSync))
+    : null
+  const fmtLastFullBackup = googleLastFullBackup
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(googleLastFullBackup))
     : null
 
   return (
@@ -752,6 +1062,53 @@ function GoogleSection() {
             )}
           </div>
 
+          {/* Full backup (Drive) section — the lossless whole-app snapshot,
+              distinct from the Activity Log mirror above. This is what
+              actually clones settings/tracker/plans/milestones/photos onto
+              another device, the way a plain Sheets row never could. */}
+          <div>
+            <button
+              className="w-full flex items-center gap-2 text-sm text-stone-600 hover:text-stone-800 transition-colors"
+              onClick={() => setShowDriveBackup((v) => !v)}
+            >
+              <Upload size={14} />
+              <span className="font-medium">Full backup (clone to another device)</span>
+              <span className="text-stone-400">{showDriveBackup ? '▲' : '▼'}</span>
+            </button>
+
+            {showDriveBackup && (
+              <div className="mt-3 space-y-3 border-t border-stone-100 pt-3">
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  This is a separate, lossless snapshot of everything on this device — not the
+                  Activity Log above, which only mirrors text-friendly entries into a spreadsheet.
+                  Do this on your laptop, then "Restore from Drive" on your phone (once it's also
+                  connected here) to make it a live copy of the same data.
+                </p>
+                {fmtLastFullBackup && (
+                  <p className="text-xs text-stone-400">Last backed up from this device: {fmtLastFullBackup}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleBackupToDrive}
+                    disabled={status === 'backing-up' || status === 'restoring'}
+                  >
+                    <Upload size={13} /> {status === 'backing-up' ? 'Backing up…' : 'Backup to Drive'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleFetchDriveBackup}
+                    disabled={status === 'backing-up' || status === 'restoring'}
+                  >
+                    <Download size={13} /> {status === 'restoring' ? 'Checking Drive…' : 'Restore from Drive'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Import section */}
           <div>
             <button
@@ -874,9 +1231,115 @@ function GoogleSection() {
       {status === 'success' && (
         <div className="mt-3 flex items-center gap-2 bg-sage-50 rounded-xl p-3 text-sm text-sage-700">
           <CheckCircle2 size={15} />
-          Synced successfully.
+          {successMessage}
         </div>
       )}
+
+      <Modal open={!!pendingDriveRestore} onClose={() => setPendingDriveRestore(null)} title="Restore this Drive backup?">
+        {pendingDriveRestore && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 bg-blush-50 border border-blush-200 rounded-xl p-3 text-sm text-blush-700">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <p>
+                This replaces everything currently on this device with the backup below. There's
+                no undo — anything logged here since that backup was taken (and not also in it)
+                will be gone.
+              </p>
+            </div>
+            <div className="bg-cream-100 rounded-2xl p-4 space-y-1 text-sm text-stone-600">
+              <p className="text-xs font-black uppercase tracking-wide text-stone-400 mb-1">
+                From {pendingDriveRestore.source}
+              </p>
+              {summarizeBackup(pendingDriveRestore.backup).map((line) => <p key={line}>{line}</p>)}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" fullWidth onClick={() => setPendingDriveRestore(null)}>Cancel</Button>
+              <Button variant="danger" fullWidth onClick={confirmDriveRestore}>Restore & replace</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!pendingConflict}
+        onClose={() => { setPendingConflict(null); setConflictChoice(null) }}
+        title="This device and Drive disagree"
+        maxWidth="max-w-xl"
+      >
+        {pendingConflict && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 bg-blush-50 border border-blush-200 rounded-xl p-3 text-sm text-blush-700">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <p>
+                This device's data and the backup in Google Drive have diverged — restoring one
+                over the other will lose whatever's only on the other side. Before choosing,
+                double-check both summaries below for a mistake you meant to fix — if you spot
+                one, close this, correct it on that device, then try again.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setConflictChoice('local')}
+                className={`text-left rounded-2xl p-4 space-y-1 border transition-colors ${
+                  conflictChoice === 'local' ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" readOnly checked={conflictChoice === 'local'} className="accent-stone-700" />
+                  <p className="text-xs font-black uppercase tracking-wide text-stone-400">This device</p>
+                </div>
+                {summarizeBackup(pendingConflict.local).map((line) => (
+                  <p key={line} className="text-sm text-stone-600">{line}</p>
+                ))}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConflictChoice('remote')}
+                className={`text-left rounded-2xl p-4 space-y-1 border transition-colors ${
+                  conflictChoice === 'remote' ? 'border-stone-700 bg-cream-100' : 'border-stone-100 hover:border-stone-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" readOnly checked={conflictChoice === 'remote'} className="accent-stone-700" />
+                  <p className="text-xs font-black uppercase tracking-wide text-stone-400">Google Drive</p>
+                </div>
+                {summarizeBackup(pendingConflict.remote).map((line) => (
+                  <p key={line} className="text-sm text-stone-600">{line}</p>
+                ))}
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-500 leading-relaxed">
+              {conflictChoice === 'local' &&
+                "This device's data stays as-is, and the Drive backup gets overwritten with it — so the other device sees this version next time it restores."}
+              {conflictChoice === 'remote' &&
+                "This device's data gets replaced with the Drive backup shown above. There's no undo for what's only here right now."}
+              {!conflictChoice && 'Pick which version to keep — you can still cancel first if you need to check something.'}
+            </p>
+
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => { setPendingConflict(null); setConflictChoice(null) }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                fullWidth
+                disabled={!conflictChoice || status === 'backing-up'}
+                onClick={confirmConflictResolution}
+              >
+                {status === 'backing-up' ? 'Updating Drive…' : 'Keep selected version'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </Card>
   )
 }
@@ -1137,6 +1600,7 @@ export function Settings() {
             <LanguagesSection />
             <LocalEventsSection />
             <GoogleSection />
+            <BackupSection />
           </div>
         </PageShell>
       )}

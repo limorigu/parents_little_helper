@@ -224,6 +224,80 @@ export async function uploadMediaIfNeeded(
   return uploadMedia(token, folderId, base64DataUrl, filename)
 }
 
+// ── Full-state backup (Drive) ───────────────────────────────────────────────
+// Unlike the Activity Log above (a lossy, human-readable Sheets mirror), a
+// backup file is the app's entire raw state as JSON — see src/lib/backup.ts
+// for the payload shape. It's meant to be read back by this same app, not
+// browsed by a human, so it's stored as one plain-JSON Drive file that gets
+// overwritten in place on every "Backup to Drive" (not versioned) — the
+// Drive copy is always "the latest snapshot," matching the semantics of the
+// local export/import feature it's modeled on.
+
+export const DRIVE_BACKUP_FILENAME = 'parents-little-helper-backup.json'
+
+/** Look up a backup file by exact name inside a folder, including its last-modified time. */
+export async function findBackupFile(
+  token: string,
+  folderId: string,
+  filename: string = DRIVE_BACKUP_FILENAME,
+): Promise<{ id: string; webViewLink: string; modifiedTime: string } | null> {
+  const q = `name='${escapeQ(filename)}' and '${escapeQ(folderId)}' in parents and trashed=false`
+  const { files } = await driveGet<{ files: { id: string; webViewLink?: string; modifiedTime?: string }[] }>(
+    token,
+    `?q=${encodeURIComponent(q)}&fields=files(id,webViewLink,modifiedTime)&spaces=drive`,
+  )
+  if (!files.length) return null
+  return { id: files[0].id, webViewLink: files[0].webViewLink ?? '', modifiedTime: files[0].modifiedTime ?? '' }
+}
+
+/**
+ * Upload a JSON backup, overwriting the existing Drive file of the same name
+ * in place if one is already there (rather than creating a duplicate on
+ * every backup). Returns the file's id/webViewLink either way.
+ */
+export async function uploadBackupJson(
+  token: string,
+  folderId: string,
+  json: string,
+  filename: string = DRIVE_BACKUP_FILENAME,
+): Promise<{ id: string; webViewLink: string }> {
+  const existing = await findBackupFile(token, folderId, filename)
+  const blob = new Blob([json], { type: 'application/json' })
+
+  if (existing) {
+    const form = new FormData()
+    form.append('file', blob, filename)
+    const r = await fetch(`${DRIVE_UPLOAD}/${existing.id}?uploadType=multipart&fields=id,webViewLink`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    })
+    if (!r.ok) throw new Error(`Backup upload ${r.status}: ${await r.text()}`)
+    return r.json()
+  }
+
+  const meta = JSON.stringify({ name: filename, parents: [folderId], mimeType: 'application/json' })
+  const form = new FormData()
+  form.append('metadata', new Blob([meta], { type: 'application/json' }))
+  form.append('file', blob, filename)
+  const r = await fetch(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id,webViewLink`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  if (!r.ok) throw new Error(`Backup upload ${r.status}: ${await r.text()}`)
+  return r.json()
+}
+
+/** Download a Drive file's raw text content by id (e.g. the JSON backup file). */
+export async function downloadDriveFileText(token: string, fileId: string): Promise<string> {
+  const r = await fetch(`${DRIVE}/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!r.ok) throw new Error(`Could not download backup (${r.status}): ${await r.text()}`)
+  return r.text()
+}
+
 // ── Spreadsheet helpers ─────────────────────────────────────────────────────
 
 const SHEET_NAMES = ['Activity Log', 'Milestones', 'Growth', 'Doctor Visits'] as const

@@ -230,6 +230,12 @@ interface AppState {
   googleMediaFolderId: string | null
   googleSheetId: string | null
   googleLastSync: string | null
+  // Separate from googleLastSync (which tracks the Sheets/media mirror) —
+  // this tracks the last time a full lossless state snapshot (see
+  // src/lib/backup.ts) was pushed to this device's Drive backup file, for
+  // Phase 3 conflict detection ("has the other device backed up more
+  // recently than this one restored?").
+  googleLastFullBackup: string | null
   googleWriteSheetName: string | null
   // User-chosen parent Drive folder the app's own folder gets nested inside.
   // null = root of "My Drive". Set once, before the app folder is first
@@ -291,6 +297,7 @@ interface AppState {
     mediaFolderId?: string | null
     sheetId?: string | null
     lastSync?: string | null
+    lastFullBackup?: string | null
     writeSheetName?: string | null
     parentFolderId?: string | null
   }) => void
@@ -302,6 +309,7 @@ const defaultGoogleConfig = {
   googleMediaFolderId: null as string | null,
   googleSheetId: null as string | null,
   googleLastSync: null as string | null,
+  googleLastFullBackup: null as string | null,
   googleWriteSheetName: null as string | null,
   googleParentFolderId: null as string | null,
 }
@@ -490,6 +498,7 @@ export const useAppStore = create<AppState>()(
           googleMediaFolderId: cfg.mediaFolderId !== undefined ? cfg.mediaFolderId : s.googleMediaFolderId,
           googleSheetId: cfg.sheetId !== undefined ? cfg.sheetId : s.googleSheetId,
           googleLastSync: cfg.lastSync !== undefined ? cfg.lastSync : s.googleLastSync,
+          googleLastFullBackup: cfg.lastFullBackup !== undefined ? cfg.lastFullBackup : s.googleLastFullBackup,
           googleWriteSheetName: cfg.writeSheetName !== undefined ? cfg.writeSheetName : s.googleWriteSheetName,
           googleParentFolderId: cfg.parentFolderId !== undefined ? cfg.parentFolderId : s.googleParentFolderId,
         })),
