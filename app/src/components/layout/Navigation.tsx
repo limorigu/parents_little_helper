@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, Star, ListChecks, Heart, TrendingUp, Stethoscope, MapPin, Settings } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Star, ListChecks, Heart, TrendingUp, Stethoscope, MapPin, Languages, Settings } from 'lucide-react'
 
 const NAV = [
   { to: '/', label: 'Home', icon: LayoutDashboard },
@@ -10,6 +10,7 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/doctor', label: 'Doctor', icon: Stethoscope },
   { to: '/events', label: 'Local Events', icon: MapPin },
+  { to: '/vocab', label: 'Vocab', icon: Languages },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 

@@ -14,6 +14,7 @@ import { GrowthChart } from './pages/GrowthChart'
 import { Calendar } from './pages/Calendar'
 import { DoctorPrep } from './pages/DoctorPrep'
 import { LocalEvents } from './pages/LocalEvents'
+import { Vocab } from './pages/Vocab'
 import { Settings } from './pages/Settings'
 
 function AppShell() {
@@ -53,6 +54,7 @@ function AppShell() {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/doctor" element={<DoctorPrep />} />
           <Route path="/events" element={<LocalEvents />} />
+          <Route path="/vocab" element={<Vocab />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

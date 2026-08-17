@@ -140,6 +140,21 @@ export interface PlayEntry {
   notes: string
 }
 
+// "Vocab of the Day" — one row per word ever surfaced for a given language,
+// on the day it was introduced. `covered` is the parent checking off that they
+// actually worked that word in with baby that day (todo-list style); it's
+// this log, not a separate "history" table, that both drives the daily
+// checklist and (filtered to `covered`) the "words learned over time" view.
+export interface VocabWordLog {
+  id: string
+  language: string
+  word: string
+  translation: string
+  date: string // yyyy-MM-dd, the day this word was recommended
+  covered: boolean
+  coveredAt: string | null
+}
+
 // A real item pulled from one of three web sources — Ticketmaster (structured
 // events), Google News (news search, via RSS), or a local blog/site feed the
 // user points at themselves (also via RSS). Every field here is copied
@@ -198,6 +213,12 @@ interface AppState {
   lastEventsFetch: string | null
   eventsFetchError: string | null
   celebrations: CelebrationPhoto[]
+
+  // "Vocab of the Day" — languages the household wants to expose baby to
+  // (chosen in Settings from a curated, verified list — see src/lib/vocab.ts)
+  // plus the running log of words recommended/covered per day.
+  targetLanguages: string[]
+  vocabLog: VocabWordLog[]
 
   // Google Sheets/Drive integration
   googleClientId: string
@@ -260,6 +281,10 @@ interface AppState {
   updateCelebration: (id: string, updates: Partial<CelebrationPhoto>) => void
   deleteCelebration: (id: string) => void
 
+  setTargetLanguages: (langs: string[]) => void
+  addVocabWords: (entries: VocabWordLog[]) => void
+  setVocabWordCovered: (id: string, covered: boolean) => void
+
   setGoogleConfig: (cfg: {
     clientId?: string
     folderId?: string | null
@@ -321,6 +346,8 @@ export const useAppStore = create<AppState>()(
       lastEventsFetch: null,
       eventsFetchError: null,
       celebrations: [],
+      targetLanguages: [],
+      vocabLog: [],
       ...defaultGoogleConfig,
 
       setBaby: (updates) =>
@@ -437,6 +464,24 @@ export const useAppStore = create<AppState>()(
         })),
       deleteCelebration: (id) =>
         set((s) => ({ celebrations: s.celebrations.filter((c) => c.id !== id) })),
+
+      setTargetLanguages: (langs) => set({ targetLanguages: langs }),
+      // De-duped by (language, date, word): makes this safe to call more than
+      // once with the same payload — which happens routinely, since React's
+      // StrictMode double-invokes effects in dev, and guards against any
+      // future double-call in production too.
+      addVocabWords: (entries) =>
+        set((s) => {
+          const existingKeys = new Set(s.vocabLog.map((v) => `${v.language}|${v.date}|${v.word}`))
+          const toAdd = entries.filter((e) => !existingKeys.has(`${e.language}|${e.date}|${e.word}`))
+          return toAdd.length ? { vocabLog: [...s.vocabLog, ...toAdd] } : {}
+        }),
+      setVocabWordCovered: (id, covered) =>
+        set((s) => ({
+          vocabLog: s.vocabLog.map((v) =>
+            v.id === id ? { ...v, covered, coveredAt: covered ? new Date().toISOString() : null } : v
+          ),
+        })),
 
       setGoogleConfig: (cfg) =>
         set((s) => ({

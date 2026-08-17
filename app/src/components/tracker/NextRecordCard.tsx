@@ -27,6 +27,7 @@ export function NextRecordCard({
   expected,
   sequenceHint,
   nowBucket,
+  activeSince,
 }: {
   activityType: ActivityType
   label: string
@@ -34,16 +35,34 @@ export function NextRecordCard({
   expected: ExpectedGap
   sequenceHint: SequenceCount | null
   nowBucket: TimeBucket
+  // ISO timestamp of an in-progress session of this same type (e.g. an active
+  // feed/sleep/play session), if there is one right now. When set, the "next
+  // X might land around…" estimate is suppressed — that projection is drawn
+  // from *past* gaps and makes no sense to show while one is already underway
+  // (it can even land in the past, which reads as flatly wrong mid-session).
+  activeSince?: string | null
 }) {
+  const isActive = Boolean(activeSince)
+  // Elapsed time for the in-progress session, recomputed fresh on every
+  // render — the parent (Tracker) ticks its own state periodically so this
+  // stays live rather than freezing at mount time.
+  const activeMinutes = activeSince ? Math.max(0, (Date.now() - new Date(activeSince).getTime()) / 60_000) : null
   const { minutes: ownMinutes, isBucketSpecific: usingBucketAvg } = pickOwnGapMinutes(gapStats, nowBucket)
   const literatureMid = expected.available ? (expected.minMinutes! + expected.maxMinutes!) / 2 : null
   const referenceMinutes = ownMinutes ?? literatureMid
 
   const nextAt =
-    gapStats.lastAt && referenceMinutes !== null ? new Date(gapStats.lastAt.getTime() + referenceMinutes * 60_000) : null
+    !isActive && gapStats.lastAt && referenceMinutes !== null
+      ? new Date(gapStats.lastAt.getTime() + referenceMinutes * 60_000)
+      : null
 
   let level: RecommendationLevel = 'info'
-  if (gapStats.sinceMinutes !== null && referenceMinutes !== null) {
+  if (isActive) {
+    // A session is already underway, so whatever gap preceded it is moot —
+    // don't flag "watch" based on time since the previous (already-superseded)
+    // record.
+    level = 'good'
+  } else if (gapStats.sinceMinutes !== null && referenceMinutes !== null) {
     level = gapStats.sinceMinutes > referenceMinutes * 1.3 ? 'watch' : 'good'
   }
   const style = LEVEL_STYLES[level]
@@ -51,10 +70,21 @@ export function NextRecordCard({
   return (
     <Card padding="sm" className={`${style.bg} ${style.border}`}>
       <p className={`text-[10px] font-black uppercase tracking-wide ${style.text} mb-1`}>
-        {ACTIVITY_EMOJI[activityType]} Since your last {label}
+        {ACTIVITY_EMOJI[activityType]} {isActive ? `${label} status` : `Since your last ${label}`}
       </p>
 
-      {gapStats.lastAt === null ? (
+      {isActive ? (
+        gapStats.lastAt === null ? (
+          <p className="text-sm text-stone-700 font-medium">
+            One's in progress right now ({fmtMin(activeMinutes as number)} so far) — this'll be your first logged {label}.
+          </p>
+        ) : (
+          <p className="text-sm text-stone-700 font-medium">
+            One's in progress right now ({fmtMin(activeMinutes as number)} so far). The last completed {label} before that was{' '}
+            {fmtMin(gapStats.sinceMinutes as number)} earlier, at {formatTime(gapStats.lastAt.toISOString())}.
+          </p>
+        )
+      ) : gapStats.lastAt === null ? (
         <p className="text-sm text-stone-600">No {label}s logged yet — once you start, we'll track the gaps for you.</p>
       ) : (
         <p className="text-sm text-stone-700 font-medium">

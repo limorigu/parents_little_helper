@@ -73,7 +73,7 @@ const DIAPER_TYPES: Array<{ value: DiaperEntry['type']; label: string; icon: str
 // ── Feed modal ───────────────────────────────────────────────────────────────
 
 function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () => void; editEntry?: FeedEntry | null }) {
-  const { addFeed, updateFeed } = useAppStore()
+  const { addFeed, updateFeed, activeFeedId, setActiveFeedId } = useAppStore()
   const [type, setType] = useState<FeedEntry['type']>('breast-left')
   const [duration, setDuration] = useState('')
   const [amount, setAmount] = useState('')
@@ -122,8 +122,23 @@ function FeedModal({ open, onClose, editEntry }: { open: boolean; onClose: () =>
     }
     if (editEntry) {
       updateFeed(editEntry.id, fields)
+      // Keep the "active feed" pointer honest: if this edit just gave the
+      // in-progress feed an end time, it's no longer active. If it went the
+      // other way (end time cleared back out), treat it as active again —
+      // same as a freshly-started QuickLog feed.
+      if (fields.endTime) {
+        if (activeFeedId === editEntry.id) setActiveFeedId(null)
+      } else {
+        setActiveFeedId(editEntry.id)
+      }
     } else {
-      addFeed({ id: uid(), ...fields })
+      const id = uid()
+      addFeed({ id, ...fields })
+      // A manually-logged feed with no end time is just as "in progress" as
+      // one started from QuickLog — mirror that here so the banner, the
+      // table's "In progress" label, and the next-feed estimate all treat it
+      // consistently rather than only recognizing QuickLog-started feeds.
+      if (!fields.endTime) setActiveFeedId(id)
     }
     onClose()
   }
@@ -453,6 +468,14 @@ export function Tracker() {
   const [editDiaperEntry, setEditDiaperEntry] = useState<DiaperEntry | null>(null)
   const [editPlayEntry, setEditPlayEntry] = useState<PlayEntry | null>(null)
 
+  const [tick, setTick] = useState(0)
+  // Re-render every 30s so "since last X" / "in progress" times stay fresh
+  // without needing a new log entry to trigger a recompute.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [])
+
   function openEditFeed(id: string) {
     const entry = feeds.find((f) => f.id === id)
     if (entry) {
@@ -534,10 +557,20 @@ export function Tracker() {
   const weeks = getBabyAgeWeeks(baby.birthDate)
   const nowBucket = getTimeBucket(new Date().getHours())
 
-  const feedGapStats = useMemo(() => computeGapStats(feeds.map((f) => parseISO(f.date))), [feeds])
-  const diaperGapStats = useMemo(() => computeGapStats(diaper.map((d) => parseISO(d.startTime))), [diaper])
-  const sleepGapStats = useMemo(() => computeSessionGapStats(sleep), [sleep])
-  const playGapStats = useMemo(() => computeSessionGapStats(play), [play])
+  // `tick` is read (via `void`) purely to force these to recompute every 30s
+  // as real time passes, not just when the underlying logs change.
+  // Exclude the currently in-progress feed (if any) from the anchor list —
+  // otherwise its own start time gets counted as "the last feed", which masks
+  // the fact that there's one actively underway right now. Sleep/Play don't
+  // need this treatment: computeSessionGapStats already only considers
+  // entries with an endTime, which a still-running session doesn't have.
+  const feedGapStats = useMemo(
+    () => { void tick; return computeGapStats(feeds.filter((f) => f.id !== activeFeedId).map((f) => parseISO(f.date)), new Date()) },
+    [feeds, activeFeedId, tick]
+  )
+  const diaperGapStats = useMemo(() => { void tick; return computeGapStats(diaper.map((d) => parseISO(d.startTime)), new Date()) }, [diaper, tick])
+  const sleepGapStats = useMemo(() => { void tick; return computeSessionGapStats(sleep, new Date()) }, [sleep, tick])
+  const playGapStats = useMemo(() => { void tick; return computeSessionGapStats(play, new Date()) }, [play, tick])
 
   const expectedFeedGap = useMemo(() => getExpectedGap('Feed', weeks), [weeks])
   const expectedSleepGap = useMemo(() => getExpectedGap('Sleep', weeks), [weeks])
@@ -553,12 +586,24 @@ export function Tracker() {
   // actually logged at least one potty catch/attempt, so non-EC households
   // never see it.
   const practicesEC = useMemo(() => diaper.some((d) => d.pottyResult), [diaper])
-  const peeStats = useMemo(() => computeECStats(diaper, 'pee'), [diaper])
-  const poopStats = useMemo(() => computeECStats(diaper, 'poop'), [diaper])
+  const peeStats = useMemo(() => { void tick; return computeECStats(diaper, 'pee', new Date()) }, [diaper, tick])
+  const poopStats = useMemo(() => { void tick; return computeECStats(diaper, 'poop', new Date()) }, [diaper, tick])
   const peeTriggerStats = useMemo(() => computeECTriggerStats(diaper, sleep, feeds, 'pee'), [diaper, sleep, feeds])
   const poopTriggerStats = useMemo(() => computeECTriggerStats(diaper, sleep, feeds, 'poop'), [diaper, sleep, feeds])
-  const sinceWakeMinutes = minutesSinceLastWake(sleep)
-  const sinceFeedMinutes = minutesSinceLastFeed(feeds)
+  // minutesSinceLastWake only looks at completed sleep sessions (it has to —
+  // an in-progress one has no endTime to measure from). But that means if
+  // baby fell back asleep, it still reports minutes since the *previous*
+  // wake-up, and the nudge below would happily say "baby just woke up" while
+  // a nap is actively underway right now. Suppress it in that case — baby
+  // hasn't woken from *this* sleep session, so there's nothing to nudge on.
+  const sinceWakeMinutes = useMemo(
+    () => { void tick; return activeSleepSession ? null : minutesSinceLastWake(sleep, new Date()) },
+    [sleep, activeSleepSession, tick]
+  )
+  const sinceFeedMinutes = useMemo(
+    () => { void tick; return minutesSinceLastFeed(feeds, new Date()) },
+    [feeds, tick]
+  )
 
   return (
     <PageShell
@@ -633,6 +678,7 @@ export function Tracker() {
               expected={expectedFeedGap}
               sequenceHint={feedSequenceHint}
               nowBucket={nowBucket}
+              activeSince={activeFeed?.date ?? null}
             />
             {recentFeeds.length === 0 ? (
               <EmptyState icon="🍼" title="No feeds logged yet" description="Tap 'Log a feed' to start tracking." />
@@ -647,7 +693,11 @@ export function Tracker() {
                     date: format(parseISO(f.date), 'd MMM'),
                     activity: <SheetChip label={FEED_LABELS[f.type]} color="sage" />,
                     start: formatTime(f.date),
-                    end: f.endTime ? formatTime(f.endTime) : '—',
+                    // Feed entries can legitimately have no end time forever (e.g. a
+                    // bottle logged with just an amount) — that's not "in progress",
+                    // so only label it that way for whichever feed is actually the
+                    // live/active one, same signal the banner above uses.
+                    end: f.endTime ? formatTime(f.endTime) : f.id === activeFeedId ? 'In progress' : '—',
                     duration: f.durationMinutes ? `${f.durationMinutes} min` : f.amountMl ? `${f.amountMl}ml` : '—',
                     notes: f.notes || '—',
                   },
@@ -684,6 +734,7 @@ export function Tracker() {
               expected={expectedSleepGap}
               sequenceHint={sleepSequenceHint}
               nowBucket={nowBucket}
+              activeSince={activeSleepSession?.startTime ?? null}
             />
             {recentSleep.length === 0 ? (
               <EmptyState icon="🌙" title="No sleep logged yet" description="Tap 'Log sleep' to start tracking." />
@@ -802,6 +853,7 @@ export function Tracker() {
               expected={expectedPlayGap}
               sequenceHint={playSequenceHint}
               nowBucket={nowBucket}
+              activeSince={activePlaySession?.startTime ?? null}
             />
             {recentPlay.length === 0 ? (
               <EmptyState icon="🧸" title="No play sessions logged yet" description="Tap 'Log play' to start tracking." />
@@ -820,7 +872,9 @@ export function Tracker() {
                       date: format(parseISO(p.startTime), 'd MMM'),
                       activity: <SheetChip label="🧸 Play" color="periwinkle" />,
                       start: formatTime(p.startTime),
-                      end: p.endTime ? formatTime(p.endTime) : '—',
+                      // Play, like sleep, is always logged via start/stop — a null
+                      // end time unambiguously means the session is still running.
+                      end: p.endTime ? formatTime(p.endTime) : 'In progress',
                       duration: mins !== null ? (mins >= 60 ? `${(mins / 60).toFixed(1)}h` : `${mins}m`) : '—',
                       notes: p.notes || '—',
                     },

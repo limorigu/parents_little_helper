@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
-import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2, Moon, MapPin } from 'lucide-react'
+import { Cloud, CloudOff, RefreshCw, Download, AlertCircle, CheckCircle2, Moon, MapPin, Languages } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PageShell } from '../components/layout/PageShell'
 import { getBabyAgeLabel, normaliseQuotes, today, uid } from '../lib/utils'
+import { SUPPORTED_LANGUAGES } from '../lib/vocab'
 import { fetchAllLocalEvents, LocalEventsFetchError } from '../lib/localEvents'
 import { signIn, signOut, getToken, isSignedIn } from '../lib/googleApi'
 import {
@@ -172,6 +173,76 @@ function AppearanceSection() {
           <span className={`w-4 h-4 bg-cream-50 rounded-full shadow-sm ml-1 transition-all ${darkMode ? 'translate-x-4' : ''}`} />
         </div>
       </label>
+    </Card>
+  )
+}
+
+// ── Languages section (Vocab of the Day) ──────────────────────────────────────
+
+function LanguagesSection() {
+  const { targetLanguages, setTargetLanguages } = useAppStore()
+  const available = SUPPORTED_LANGUAGES.filter((lang) => !targetLanguages.includes(lang))
+
+  function remove(lang: string) {
+    setTargetLanguages(targetLanguages.filter((l) => l !== lang))
+  }
+
+  function add(e: React.ChangeEvent<HTMLSelectElement>) {
+    const lang = e.target.value
+    if (lang && !targetLanguages.includes(lang)) {
+      setTargetLanguages([...targetLanguages, lang])
+    }
+    e.target.value = ''
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-1">
+        <Languages size={18} className="text-periwinkle-500 shrink-0" />
+        <div>
+          <h2 className="font-display text-base text-stone-700">Vocab of the Day</h2>
+          <p className="text-xs text-stone-400">Pick the language(s) you'd like to expose baby to</p>
+        </div>
+      </div>
+
+      {targetLanguages.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {targetLanguages.map((lang) => (
+            <button
+              key={lang}
+              onClick={() => remove(lang)}
+              title="Remove"
+              className="px-3 py-1.5 rounded-xl border border-stone-700 bg-cream-100 text-stone-800 text-xs font-medium transition-all hover:bg-cream-200 flex items-center gap-1.5"
+            >
+              {lang} <span className="text-stone-400">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {available.length > 0 && (
+        <select
+          onChange={add}
+          defaultValue=""
+          className="mt-3 w-full rounded-xl border-[3px] border-stone-800 bg-cream-50 px-3 py-2 text-xs font-medium text-stone-700 focus:outline-none focus:shadow-brutal-sm focus:-translate-y-0.5 transition-all"
+        >
+          <option value="" disabled>
+            + Add a language…
+          </option>
+          {available.map((lang) => (
+            <option key={lang} value={lang}>
+              {lang}
+            </option>
+          ))}
+        </select>
+      )}
+
+      <p className="text-xs text-stone-400 leading-relaxed mt-3">
+        For each language you pick, the Vocab tab suggests a few new words a day (with real songs and
+        simple activity ideas to introduce them) and lets you check off the ones you actually covered.
+        This list is curated for accuracy rather than open-ended — let us know if you'd like another
+        language added.
+      </p>
     </Card>
   )
 }
@@ -1063,6 +1134,7 @@ export function Settings() {
           <div className="space-y-4">
             <ProfileSection form={form} set={set} onSave={save} saved={saved} />
             <AppearanceSection />
+            <LanguagesSection />
             <LocalEventsSection />
             <GoogleSection />
           </div>
