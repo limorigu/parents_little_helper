@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { formatTime, today, uid, toDateTimeInput, localDayKey, defaultEndFor, elapsedSince, getBabyAgeWeeks } from '../lib/utils'
+import { formatTime, today, uid, toDateTimeInput, localDayKey, defaultEndFor, elapsedSince, getBabyAgeWeeks, nowLocalIso } from '../lib/utils'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -456,7 +456,10 @@ const DIAPER_LABELS: Record<DiaperEntry['type'], string> = {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function Tracker() {
-  const { feeds, sleep, diaper, play, baby, activeFeedId, deleteFeed, deleteSleep, deleteDiaper, deletePlay } = useAppStore()
+  const {
+    feeds, sleep, diaper, play, baby, activeFeedId, deleteFeed, deleteSleep, deleteDiaper, deletePlay,
+    updateFeed, updateSleep, updatePlay, setActiveFeedId,
+  } = useAppStore()
   const [tab, setTab] = useState<Tab>('feed')
   const [feedModal, setFeedModal] = useState(false)
   const [sleepModal, setSleepModal] = useState(false)
@@ -660,10 +663,17 @@ export function Tracker() {
                   🍼 Feed in progress · {elapsedSince(activeFeed.date)}
                 </p>
                 <p className="text-xs text-marigold-600 mb-3">
-                  Started {formatTime(activeFeed.date)} — set a manual end time here to close it out
-                  (retroactively, if you like) without waiting on the clock.
+                  Started {formatTime(activeFeed.date)} — end it now in one tap, or edit the row below
+                  to set a different end time.
                 </p>
-                <Button variant="secondary" size="sm" onClick={() => openEditFeed(activeFeed.id)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    updateFeed(activeFeed.id, { endTime: nowLocalIso() })
+                    setActiveFeedId(null)
+                  }}
+                >
                   End this feed
                 </Button>
               </Card>
@@ -716,10 +726,10 @@ export function Tracker() {
                   {activeSleepSession.type === 'night' ? '🌙 Night sleep' : activeSleepSession.type === 'nap' ? '☀️ Nap' : '❓ Sleep'} in progress · {elapsedSince(activeSleepSession.startTime)}
                 </p>
                 <p className="text-xs text-periwinkle-500 mb-3">
-                  Started {formatTime(activeSleepSession.startTime)} — set a manual end time here to close it
-                  out, or use "Log sleep" below to add a different, unrelated entry.
+                  Started {formatTime(activeSleepSession.startTime)} — end it now in one tap, edit the row
+                  below for a different end time, or use "Log sleep" to add a different, unrelated entry.
                 </p>
-                <Button variant="secondary" size="sm" onClick={() => { setEditSleepEntry(null); setActiveSleep(activeSleepSession); setSleepModal(true) }}>
+                <Button variant="secondary" size="sm" onClick={() => updateSleep(activeSleepSession.id, { endTime: nowLocalIso() })}>
                   End session
                 </Button>
               </Card>
@@ -836,9 +846,10 @@ export function Tracker() {
                   🧸 Play in progress · {elapsedSince(activePlaySession.startTime)}
                 </p>
                 <p className="text-xs text-sage-600 mb-3">
-                  Started {formatTime(activePlaySession.startTime)} — set a manual end time here to close it out.
+                  Started {formatTime(activePlaySession.startTime)} — end it now in one tap, or edit the
+                  row below to set a different end time.
                 </p>
-                <Button variant="secondary" size="sm" onClick={() => openEditPlay(activePlaySession.id)}>
+                <Button variant="secondary" size="sm" onClick={() => updatePlay(activePlaySession.id, { endTime: nowLocalIso() })}>
                   End this play session
                 </Button>
               </Card>
